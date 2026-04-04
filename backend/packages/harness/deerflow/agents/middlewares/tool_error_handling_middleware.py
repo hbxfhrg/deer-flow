@@ -8,7 +8,10 @@ from langchain.agents import AgentState
 from langchain.agents.middleware import AgentMiddleware
 from langchain_core.messages import ToolMessage
 from langgraph.errors import GraphBubbleUp
-from langgraph.prebuilt.tool_node import ToolCallRequest
+# 由于 langgraph 1.0.10 没有 prebuilt 模块，创建一个简单的 ToolCallRequest 类
+class ToolCallRequest:
+    def __init__(self, tool_call):
+        self.tool_call = tool_call
 from langgraph.types import Command
 
 logger = logging.getLogger(__name__)

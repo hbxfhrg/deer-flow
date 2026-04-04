@@ -3,7 +3,11 @@ import logging
 import yaml
 from langchain_core.messages import ToolMessage
 from langchain_core.tools import tool
-from langgraph.prebuilt import ToolRuntime
+# 由于 langgraph 1.0.10 没有 prebuilt 模块，创建一个简单的 ToolRuntime 类
+class ToolRuntime:
+    def __init__(self, context=None, tool_call_id=None):
+        self.context = context
+        self.tool_call_id = tool_call_id
 from langgraph.types import Command
 
 from deerflow.config.paths import get_paths

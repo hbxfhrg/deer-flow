@@ -20,10 +20,16 @@ export function getBackendBaseURL() {
 
 export function getLangGraphBaseURL(isMock?: boolean) {
   if (env.NEXT_PUBLIC_LANGGRAPH_BASE_URL) {
-    return new URL(
-      env.NEXT_PUBLIC_LANGGRAPH_BASE_URL,
-      getBaseOrigin(),
-    ).toString();
+    // Check if the URL is already a full URL
+    try {
+      return new URL(env.NEXT_PUBLIC_LANGGRAPH_BASE_URL).toString();
+    } catch {
+      // If it's not a full URL, use it as a path relative to the origin
+      return new URL(
+        env.NEXT_PUBLIC_LANGGRAPH_BASE_URL,
+        getBaseOrigin(),
+      ).toString();
+    }
   } else if (isMock) {
     if (typeof window !== "undefined") {
       return `${window.location.origin}/mock/api`;

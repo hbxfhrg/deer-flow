@@ -5,15 +5,22 @@ import logging
 import re
 import shlex
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import override
 
 from langchain.agents.middleware import AgentMiddleware
 from langchain_core.messages import ToolMessage
-from langgraph.prebuilt.tool_node import ToolCallRequest
 from langgraph.types import Command
 
 from deerflow.agents.thread_state import ThreadState
+
+
+@dataclass
+class ToolCallRequest:
+    name: str
+    args: dict
+    id: str
 
 logger = logging.getLogger(__name__)
 
