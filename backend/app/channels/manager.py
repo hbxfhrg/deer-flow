@@ -50,6 +50,10 @@ INBOUND_FILE_READERS: dict[str, InboundFileReader] = {}
 
 
 def register_inbound_file_reader(channel_name: str, reader: InboundFileReader) -> None:
+    if not isinstance(channel_name, str) or not channel_name:
+        raise ValueError("channel_name must be a non-empty string")
+    if not callable(reader):
+        raise ValueError("reader must be a callable")
     INBOUND_FILE_READERS[channel_name] = reader
 
 
@@ -74,11 +78,14 @@ async def _read_wecom_inbound_file(file_info: dict[str, Any], client: httpx.Asyn
 
     try:
         from aibot.crypto_utils import decrypt_file
-    except Exception:
-        logger.exception("[Manager] failed to import WeCom decrypt_file")
+        decrypted_data = decrypt_file(data, aeskey)
+        return decrypted_data
+    except ImportError:
+        logger.error("aibot.crypto_utils not available, cannot decrypt WeCom file")
         return None
-
-    return decrypt_file(data, aeskey)
+    except Exception as e:
+        logger.error("Failed to decrypt WeCom file: %s", str(e))
+        return None
 
 
 async def _read_wechat_inbound_file(file_info: dict[str, Any], client: httpx.AsyncClient) -> bytes | None:
