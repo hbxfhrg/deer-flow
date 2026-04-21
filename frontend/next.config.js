@@ -36,6 +36,16 @@ const config = {
       });
     }
 
+    // Add rewrite for langgraph-compat to use Gateway
+    rewrites.push({
+      source: "/api/langgraph-compat",
+      destination: `${gatewayURL}`,
+    });
+    rewrites.push({
+      source: "/api/langgraph-compat/:path*",
+      destination: `${gatewayURL}/:path*`,
+    });
+
     if (!process.env.NEXT_PUBLIC_BACKEND_BASE_URL) {
       rewrites.push({
         source: "/api/agents",
