@@ -44,13 +44,14 @@ const config = {
     }
 
     // Add rewrite for langgraph-compat to use Gateway
+    // Note: Gateway routes are under /api prefix (e.g., /api/assistants, /api/threads)
     rewrites.push({
       source: "/api/langgraph-compat",
-      destination: `${gatewayURL}`,
+      destination: `${gatewayURL}/api`,
     });
     rewrites.push({
       source: "/api/langgraph-compat/:path*",
-      destination: `${gatewayURL}/:path*`,
+      destination: `${gatewayURL}/api/:path*`,
     });
 
     if (!process.env.NEXT_PUBLIC_BACKEND_BASE_URL) {

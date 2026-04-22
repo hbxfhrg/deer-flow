@@ -65,10 +65,16 @@ class DeerFlowSummarizationMiddleware(SummarizationMiddleware):
         self,
         *args,
         before_summarization: list[BeforeSummarizationHook] | None = None,
+        trigger: tuple | list[tuple] | None = None,
+        keep: tuple | None = None,
         **kwargs,
     ) -> None:
+        # Extract trigger and keep from kwargs before passing to parent
+        # These are DeerFlow-specific parameters, not supported by LangChain's SummarizationMiddleware
         super().__init__(*args, **kwargs)
         self._before_summarization_hooks = before_summarization or []
+        self._trigger = trigger
+        self._keep = keep
 
     def before_model(self, state: AgentState, runtime: Runtime) -> dict | None:
         return self._maybe_summarize(state, runtime)

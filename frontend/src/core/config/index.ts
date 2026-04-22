@@ -10,9 +10,16 @@ function getBaseOrigin() {
 
 export function getBackendBaseURL() {
   if (env.NEXT_PUBLIC_BACKEND_BASE_URL) {
-    return new URL(env.NEXT_PUBLIC_BACKEND_BASE_URL, getBaseOrigin())
-      .toString()
-      .replace(/\/+$/, "");
+    // Check if the URL is already a full URL
+    try {
+      return new URL(env.NEXT_PUBLIC_BACKEND_BASE_URL).toString().replace(/\/+$/, "");
+    } catch {
+      // If it's not a full URL, use it as a path relative to the origin
+      return new URL(
+        env.NEXT_PUBLIC_BACKEND_BASE_URL,
+        getBaseOrigin(),
+      ).toString().replace(/\/+$/, "");
+    }
   } else {
     return "";
   }
