@@ -26,6 +26,10 @@ export function getBackendBaseURL() {
 }
 
 export function getLangGraphBaseURL(isMock?: boolean) {
+  console.log(
+    "env.NEXT_PUBLIC_LANGGRAPH_BASE_URL",
+    env.NEXT_PUBLIC_LANGGRAPH_BASE_URL,
+  );
   if (env.NEXT_PUBLIC_LANGGRAPH_BASE_URL) {
     // Check if the URL is already a full URL
     try {
