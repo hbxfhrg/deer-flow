@@ -301,6 +301,10 @@ This gateway provides custom endpoints for models, MCP configuration, skills, an
 
     # CORS is handled by nginx - no need for FastAPI middleware
 
+    # Add auth middleware - must be added AFTER routers are included
+    # so that it wraps all routes (middleware executes in reverse order)
+    app.add_middleware(AuthMiddleware)
+
     # Include routers
     # Models API is mounted at /api/models
     app.include_router(models.router)
