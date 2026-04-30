@@ -8,10 +8,10 @@ foreach ($port in $nodePorts) {
     $pids = netstat -ano | Select-String ":$port\s" | ForEach-Object {
         ($_ -split '\s+')[-1]
     } | Where-Object { $_ -match '^\d+$' } | Sort-Object -Unique
-    foreach ($pid in $pids) {
-        if ($pid -and (Get-Process -Id $pid -ErrorAction SilentlyContinue)) {
-            Write-Host "  停止 Node 进程 PID: $pid (端口: $port)" -ForegroundColor Gray
-            Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+    foreach ($procId in $pids) {
+        if ($procId -and (Get-Process -Id $procId -ErrorAction SilentlyContinue)) {
+            Write-Host "  停止 Node 进程 ID: $procId (端口: $port)" -ForegroundColor Gray
+            Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
         }
     }
 }
@@ -22,10 +22,10 @@ foreach ($port in $backendPorts) {
     $pids = netstat -ano | Select-String ":$port\s" | ForEach-Object {
         ($_ -split '\s+')[-1]
     } | Where-Object { $_ -match '^\d+$' } | Sort-Object -Unique
-    foreach ($pid in $pids) {
-        if ($pid -and (Get-Process -Id $pid -ErrorAction SilentlyContinue)) {
-            Write-Host "  停止 Python 进程 PID: $pid (端口: $port)" -ForegroundColor Gray
-            Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+    foreach ($procId in $pids) {
+        if ($procId -and (Get-Process -Id $procId -ErrorAction SilentlyContinue)) {
+            Write-Host "  停止 Python 进程 ID: $procId (端口: $port)" -ForegroundColor Gray
+            Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
         }
     }
 }
