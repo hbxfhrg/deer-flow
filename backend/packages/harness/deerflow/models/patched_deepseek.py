@@ -21,7 +21,27 @@ class PatchedChatDeepSeek(ChatDeepSeek):
     to be present on ALL assistant messages in multi-turn conversations. This patched
     version ensures reasoning_content from additional_kwargs is included in the
     request payload.
+    
+    Also properly handles thinking mode by removing the 'thinking' param from
+    extra_body when it should be disabled, to avoid API errors.
     """
+
+    def __init__(self, **kwargs: Any) -> None:
+        """Initialize with thinking parameter cleanup."""
+        # Clean up thinking in extra_body if it's a boolean (invalid)
+        extra_body = kwargs.get("extra_body")
+        if extra_body and isinstance(extra_body, dict) and "thinking" in extra_body:
+            thinking_value = extra_body["thinking"]
+            if isinstance(thinking_value, bool):
+                del extra_body["thinking"]
+                if not extra_body:
+                    kwargs.pop("extra_body", None)
+        
+        # Also clean up direct thinking parameter if it's a boolean
+        if "thinking" in kwargs and isinstance(kwargs["thinking"], bool):
+            kwargs.pop("thinking", None)
+        
+        super().__init__(**kwargs)
 
     @classmethod
     def is_lc_serializable(cls) -> bool:
@@ -42,12 +62,30 @@ class PatchedChatDeepSeek(ChatDeepSeek):
 
         Overrides the parent method to inject reasoning_content from
         additional_kwargs into assistant messages in the payload.
+        Also removes 'thinking' from extra_body if it's set to False (invalid).
         """
         # Get the original messages before conversion
         original_messages = self._convert_input(input_).to_messages()
 
         # Call parent to get the base payload
         payload = super()._get_request_payload(input_, stop=stop, **kwargs)
+
+        # Fix: Remove thinking from extra_body if it's set to invalid value (False/True booleans)
+        # DeepSeek API expects thinking to be an object like {"type": "disabled"} or not present
+        extra_body = payload.get("extra_body", {})
+        if "thinking" in extra_body:
+            thinking_value = extra_body["thinking"]
+            # If thinking is a boolean (invalid), remove it from the payload
+            if isinstance(thinking_value, bool):
+                del extra_body["thinking"]
+                if not extra_body:
+                    payload.pop("extra_body", None)
+        
+        # Also fix: If thinking is directly in the payload (not in extra_body)
+        if "thinking" in payload:
+            thinking_value = payload["thinking"]
+            if isinstance(thinking_value, bool):
+                del payload["thinking"]
 
         # Match payload messages with original messages to restore reasoning_content
         payload_messages = payload.get("messages", [])

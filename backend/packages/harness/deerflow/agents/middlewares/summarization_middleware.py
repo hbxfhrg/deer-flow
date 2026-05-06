@@ -111,8 +111,10 @@ class DeerFlowSummarizationMiddleware(SummarizationMiddleware):
         keep: tuple | None = None,
         **kwargs,
     ) -> None:
-        # Extract trigger and keep from kwargs before passing to parent
-        # These are DeerFlow-specific parameters, not supported by LangChain's SummarizationMiddleware
+        # Extract DeerFlow-specific parameters before passing to parent
+        # These are not supported by LangChain's SummarizationMiddleware
+        kwargs.pop("trim_tokens_to_summarize", None)
+        kwargs.pop("summary_prompt", None)
         super().__init__(*args, **kwargs)
         self._skills_container_path = skills_container_path or "/mnt/skills"
         self._skill_file_read_tool_names = frozenset(skill_file_read_tool_names or {"read_file", "read", "view", "cat"})
@@ -126,6 +128,35 @@ class DeerFlowSummarizationMiddleware(SummarizationMiddleware):
 
     async def abefore_model(self, state: AgentState, runtime: Runtime) -> dict | None:
         return await self._amaybe_summarize(state, runtime)
+
+    def _should_summarize(self, messages: list[AnyMessage], total_tokens: int) -> bool:
+        """Determine if summarization should be triggered based on token count and configuration."""
+        # Check if parent class has this method
+        parent_class = SummarizationMiddleware
+        if hasattr(parent_class, '_should_summarize'):
+            return parent_class._should_summarize(self, messages, total_tokens)
+        
+        # Fallback: check if we have trigger configured
+        # The trigger is passed as a tuple (type, value) or list of tuples
+        triggers = getattr(self, 'trigger', None)
+        if not triggers:
+            return False
+        
+        # Normalize to list
+        if not isinstance(triggers, list):
+            triggers = [triggers]
+        
+        # Check each trigger condition
+        for trigger in triggers:
+            if isinstance(trigger, tuple) and len(trigger) >= 2:
+                trigger_type, trigger_value = trigger[0], trigger[1]
+                
+                if trigger_type == 'tokens' and total_tokens >= trigger_value:
+                    return True
+                elif trigger_type == 'messages' and len(messages) >= trigger_value:
+                    return True
+        
+        return False
 
     def _maybe_summarize(self, state: AgentState, runtime: Runtime) -> dict | None:
         messages = state["messages"]
