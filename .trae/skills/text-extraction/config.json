@@ -1,0 +1,38 @@
+{
+    "extraction": {
+        "focus_options": ["价格", "续航", "空间", "油耗", "配置", "安全", "品牌"],
+        "car_models": [
+            "至境E7", "至境世家", "至境L7", "GL8陆尊燃油版", "全新GL8陆尊",
+            "昂科威S", "昂科威PLUS", "君越", "君威", "GL8陆尚",
+            "GL8陆上公务舱", "别克世纪", "威朗Pro", "微蓝6", "别克E5"
+        ],
+        "required_dimensions": [
+            {"id": "1669", "dimension": "意向车型"},
+            {"id": "1672", "dimension": "预算区间"},
+            {"id": "1675", "dimension": "客户类型"},
+            {"id": "1680", "dimension": "用途"},
+            {"id": "1683", "dimension": "对比车型"},
+            {"id": "1685", "dimension": "决策人"},
+            {"id": "1687", "dimension": "体验动作"},
+            {"id": "1716", "dimension": "身份"},
+            {"id": "1717", "dimension": "购车阶段"},
+            {"id": "1718", "dimension": "意向配置"},
+            {"id": "1719", "dimension": "意向动力"},
+            {"id": "1720", "dimension": "意向外观/内饰"},
+            {"id": "1721", "dimension": "关注点"},
+            {"id": "1722", "dimension": "痛点"},
+            {"id": "1723", "dimension": "购车方式"},
+            {"id": "1724", "dimension": "置换意向"},
+            {"id": "1725", "dimension": "金融意向"},
+            {"id": "1727", "dimension": "顾虑点/关注点"},
+            {"id": "1728", "dimension": "购车时间"},
+            {"id": "1729", "dimension": "决策障碍"},
+            {"id": "1730", "dimension": "客户态度"}
+        ]
+    },
+    "output": {
+        "format": "json",
+        "indent": 2,
+        "ensure_ascii": false
+    }
+}

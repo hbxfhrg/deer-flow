@@ -1,0 +1,232 @@
+{
+  "detailed_extraction": [
+    {
+      "dimension": "意向车型",
+      "is_match": false,
+      "value": "未提及",
+      "remarks": "对话中未提及意向车型",
+      "original_utterances": "对话中无明确具体车型（如“境E7”表述不够明确）",
+      "id": "1669"
+    },
+    {
+      "dimension": "预算区间",
+      "is_match": false,
+      "value": "未提及",
+      "remarks": "对话中未提及预算区间",
+      "original_utterances": "对话未直接说明预算范围",
+      "id": "1672"
+    },
+    {
+      "dimension": "客户类型",
+      "is_match": true,
+      "value": "家庭用户",
+      "remarks": "已识别客户类型",
+      "original_utterances": "员工：“全带全家都在”",
+      "id": "1675"
+    },
+    {
+      "dimension": "用途",
+      "is_match": true,
+      "value": "家庭用车（多成员SUV）",
+      "remarks": "已识别用途",
+      "original_utterances": "员工：“那肯定你这个你正常就家庭用的大部座SUV”",
+      "id": "1680"
+    },
+    {
+      "dimension": "对比车型",
+      "is_match": false,
+      "value": "未提及",
+      "remarks": "对话中未提及对比车型",
+      "original_utterances": "对话中无其他品牌车型对比; 之前金流客优是吧？",
+      "id": "1683"
+    },
+    {
+      "dimension": "决策人",
+      "is_match": true,
+      "value": "潜在购车者（客户）",
+      "remarks": "已识别决策人",
+      "original_utterances": "对话互动以客户参与试驾为主，属决策主体",
+      "id": "1685"
+    },
+    {
+      "dimension": "体验动作",
+      "is_match": true,
+      "value": "试驾、设置功能（如打开后仓智慧屏）、测试性能（加速/刹车等）; 试驾",
+      "remarks": "已识别体验动作",
+      "original_utterances": "员工：“至境E7试驾”；“打开全车座椅通风”...; 试驾的时候需要注意啥，就是一个安全常识。",
+      "id": "1687"
+    },
+    {
+      "dimension": "身份",
+      "is_match": true,
+      "value": "销售人员（员工）、客户（潜在购车者）; 销售人员",
+      "remarks": "已识别身份",
+      "original_utterances": "员工是销售，客户参与试驾; 员工在介绍产品信息（如“体验这个开智驾...”）",
+      "id": "1716"
+    },
+    {
+      "dimension": "购车阶段",
+      "is_match": true,
+      "value": "意向评估期（试驾中）; 了解/评估阶段（初期）",
+      "remarks": "已识别购车阶段",
+      "original_utterances": "对话处于试驾过程中，属于考虑购买决策阶段; 考完就可以开始驾。（结合视频学习、试驾等行为判断处于了解和初步评估阶段）",
+      "id": "1717"
+    },
+    {
+      "dimension": "意向配置",
+      "is_match": true,
+      "value": "后舱智慧屏、防眩晕系统、全车双层隔音等; 智能驾驶、座椅材质（GL8同款）",
+      "remarks": "已识别意向配置",
+      "original_utterances": "员工：“打开后仓智慧屏”；“单车资源的...全车的四块都是双层的”...; 就是提醒你什么时候该接管，试驾的时候需要注意啥，就是一个安全常识。用的是GL8同款的一个座椅",
+      "id": "1718"
+    },
+    {
+      "dimension": "意向动力",
+      "is_match": true,
+      "value": "插电混动（PHEV）; 6.8秒（混动加速）",
+      "remarks": "已识别意向动力",
+      "original_utterances": "员工：“真龙插混去”; 百分里加速是6.8秒，就算亏电以后才就是在7秒",
+      "id": "1719"
+    },
+    {
+      "dimension": "意向外观/内饰",
+      "is_match": true,
+      "value": "座椅材质与GL8同款",
+      "remarks": "已识别意向外观/内饰",
+      "original_utterances": "因为这个是用的是GL8同款的一个座椅",
+      "id": "1720"
+    },
+    {
+      "dimension": "关注点",
+      "is_match": true,
+      "value": "试驾性能体验（加速/刹车）、智能功能体验（如智驾）; 智能驾驶安全提示、车窗静音性",
+      "remarks": "已识别关注点",
+      "original_utterances": "对话围绕试驾中的各项感受; 体验这个开智驾必须要经过一个半个小时左右的一个视频学习。就是提醒你什么时候该接管，试驾的时候需要注意啥，就是一个安全常识。",
+      "id": "1721"
+    },
+    {
+      "dimension": "痛点",
+      "is_match": true,
+      "value": "能量回收感知不佳（踩几脚车有违感）; 晕车（或驾驶不适感）",
+      "remarks": "已识别痛点",
+      "original_utterances": "员工：“苏也没有说是电车的能量车金融版...踩几脚车最终有违感。”; 你俩配合三个不晕吧，晕吧，行，是比。",
+      "id": "1722"
+    },
+    {
+      "dimension": "购车方式",
+      "is_match": false,
+      "value": "未提及",
+      "remarks": "对话中未提及购车方式",
+      "original_utterances": "无相关表述",
+      "id": "1723"
+    },
+    {
+      "dimension": "置换意向",
+      "is_match": false,
+      "value": "未提及",
+      "remarks": "对话中未提及置换意向",
+      "original_utterances": "",
+      "id": "1724"
+    },
+    {
+      "dimension": "金融意向",
+      "is_match": true,
+      "value": "有需求/关注金融方案（如“一享现”）",
+      "remarks": "已识别金融意向",
+      "original_utterances": "员工：“如果我如享500的话，一享现”",
+      "id": "1725"
+    },
+    {
+      "dimension": "顾虑点/关注点",
+      "is_match": false,
+      "value": "未提及",
+      "remarks": "对话中未提及顾虑点/关注点",
+      "original_utterances": "",
+      "id": "1727"
+    },
+    {
+      "dimension": "购车时间",
+      "is_match": true,
+      "value": "近期考虑购买（早小前一天、最后一天）; 当天/近期（下午试驾）",
+      "remarks": "已识别购车时间",
+      "original_utterances": "员工：“早小前一天，最后一天”; 这是下午在单位的设备，向给人再。客户：试驾。",
+      "id": "1728"
+    },
+    {
+      "dimension": "决策障碍",
+      "is_match": true,
+      "value": "智能驾驶技术可靠性与性能差异的疑问; 对比竞品“金流客优”的决策影响",
+      "remarks": "已识别决策障碍",
+      "original_utterances": "员工对L2+与莱拉的性能差异及厂家测试能力的疑虑; 之前金流客优是吧？我太蓝智驾。",
+      "id": "1729"
+    },
+    {
+      "dimension": "客户态度",
+      "is_match": true,
+      "value": "积极/感兴趣",
+      "remarks": "已识别客户态度",
+      "original_utterances": "客户主动参与试驾并详细提问<",
+      "id": "1730"
+    }
+  ],
+  "summary_tags": {
+    "意向车型标签": [
+      {
+        "id": "1690",
+        "dimension": "意向车型标签",
+        "is_match": true,
+        "value": "客户明确表达对至境E7 SUV感兴趣，重点考察插电混动版本（PHEV），关注后舱智慧屏、全车双层隔音等配置，同时要求座椅材质与GL8同款。"
+      }
+    ],
+    "竞品对比标签": [
+      {
+        "id": "1690",
+        "dimension": "竞品对比标签",
+        "is_match": true,
+        "value": "客户对蓝智驾（至境E7的智能驾驶系统）有疑虑，提及之前接触过的金流客优车型，关注不同品牌在L2+级别性能差异。"
+      }
+    ],
+    "客户基础标签": [
+      {
+        "id": "1690",
+        "dimension": "客户基础标签",
+        "is_match": true,
+        "value": "家庭用户（家庭用户），以家庭用车为主要需求，决策人为客户本人，处于试驾评估阶段，近期有购车计划。"
+      }
+    ],
+    "核心需求标签": [
+      {
+        "id": "1690",
+        "dimension": "核心需求标签",
+        "is_match": true,
+        "value": "核心关注空间与安全配置，对多成员SUV的乘坐舒适性有较高要求，同时重视智能驾驶系统的学习成本（约30分钟视频教程）和防眩晕功能。"
+      }
+    ],
+    "预算与购车方式标签": [
+      {
+        "id": "1690",
+        "dimension": "预算与购车方式标签",
+        "is_match": false,
+        "value": "",
+        "remarks": "",
+        "original_utterances": ""
+      }
+    ],
+    "购车决策信息标签": [
+      {
+        "id": "1690",
+        "dimension": "购车决策信息标签",
+        "is_match": true,
+        "value": "客户当前处于了解/评估阶段，试驾后可进入购买流程；决策人为潜在购车者本人，对智能驾驶系统有30分钟视频学习的要求。"
+      }
+    ],
+    "服务与行动标签": [
+      {
+        "id": "1690",
+        "dimension": "服务与行动标签",
+        "is_match": true,
+        "value": "客户积极参与试驾并详细提问，关注试驾中的加速、刹车等性能表现，同时对能量回收感知不佳和晕车问题提出反馈。"
+      }
+    ]
+  }
+}
