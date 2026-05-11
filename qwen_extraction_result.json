@@ -4,8 +4,8 @@
       "dimension": "意向车型",
       "is_match": true,
       "value": "至境E7",
-      "remarks": "客户明确提及意向车型为至境E7",
-      "original_utterances": "员工：至境E7试驾. 客户：开始。",
+      "remarks": "已识别意向车型",
+      "original_utterances": "员工：至境E7试驾.",
       "id": "1669"
     },
     {
@@ -18,18 +18,18 @@
     },
     {
       "dimension": "客户类型",
-      "is_match": true,
-      "value": "首次到店",
-      "remarks": "客户首次到店体验",
-      "original_utterances": "客户：开始。",
+      "is_match": false,
+      "value": "未提及",
+      "remarks": "对话中未提及客户类型",
+      "original_utterances": "",
       "id": "1675"
     },
     {
       "dimension": "用途",
       "is_match": true,
       "value": "家用",
-      "remarks": "客户提及家庭使用需求",
-      "original_utterances": "员工：境帕特子的话，那肯定你这个你正常就家庭用的大部座SUV大会对刹车汽车化上车汽车版表现前版比较好。",
+      "remarks": "已识别用途",
+      "original_utterances": "员工：全带全家都在...员工：正常就家庭用的大部座SUV",
       "id": "1680"
     },
     {
@@ -43,73 +43,73 @@
     {
       "dimension": "决策人",
       "is_match": true,
-      "value": "本人",
-      "remarks": "客户表示自己做主",
-      "original_utterances": "客户：没有我觉得我儿子我两个儿子用车了没。",
+      "value": "家人",
+      "remarks": "已识别决策人",
+      "original_utterances": "员工：全带全家都在...客户：我儿子我两个儿子用车了没",
       "id": "1685"
     },
     {
       "dimension": "体验动作",
       "is_match": true,
       "value": "试乘试驾",
-      "remarks": "客户已完成试驾体验",
-      "original_utterances": "员工：至境E7试驾. 客户：开始。客户：试驾。",
+      "remarks": "已识别体验动作",
+      "original_utterances": "员工：至境E7试驾. 客户：开始。",
       "id": "1687"
     },
     {
       "dimension": "身份",
       "is_match": true,
-      "value": "客户",
-      "remarks": "客户身份明确",
-      "original_utterances": "员工：你好，别克。",
+      "value": "个人客户",
+      "remarks": "已识别身份",
+      "original_utterances": "员工：全带全家都在...客户：我儿子我两个儿子用车了没",
       "id": "1716"
     },
     {
       "dimension": "购车阶段",
       "is_match": true,
-      "value": "试驾评估期",
-      "remarks": "客户正在试驾评估",
-      "original_utterances": "客户：试驾。",
+      "value": "对比阶段",
+      "remarks": "已识别购车阶段",
+      "original_utterances": "员工：这个智驾的话，就你可以在网上了解一下...近期优惠9000",
       "id": "1717"
     },
     {
       "dimension": "意向配置",
       "is_match": true,
-      "value": "全车座椅通风",
-      "remarks": "客户关注座椅通风功能",
-      "original_utterances": "员工：你好，别克。打开全车座椅通风。",
+      "value": "开放式",
+      "remarks": "已识别意向配置",
+      "original_utterances": "员工：顶配的话，智驾这安吗？...员工：现在我就先用个充电模式来感受一下...员工：打开后仓智慧屏",
       "id": "1718"
     },
     {
       "dimension": "意向动力",
       "is_match": true,
       "value": "插混",
-      "remarks": "客户关注插混动力",
-      "original_utterances": "员工：因为咱们电跟没电加速线的差0.1到0.2秒，说白了就是你人是开不出来这种几0.7秒的差别的，你只有拿机器测。",
+      "remarks": "已识别意向动力",
+      "original_utterances": "员工：这个车它为啥就我就真龙插混去...员工：因为咱们电跟没电加速线的差0.1到0.2秒",
       "id": "1719"
     },
     {
       "dimension": "意向外观/内饰",
-      "is_match": false,
-      "value": "未提及",
-      "remarks": "对话中未提及外观内饰偏好",
-      "original_utterances": "",
+      "is_match": true,
+      "value": "灰",
+      "remarks": "已识别意向外观/内饰",
+      "original_utterances": "员工：要这是个灰色艳灰色",
       "id": "1720"
     },
     {
       "dimension": "关注点",
       "is_match": true,
-      "value": "配置",
-      "remarks": "客户关注配置",
-      "original_utterances": "员工：你好，别克。打开全车座椅通风。员工：你那个你好，别克。打开后仓智慧屏。",
+      "value": "安全",
+      "remarks": "已识别关注点",
+      "original_utterances": "员工：而且就是现在看的电车，电车主要就考虑的是安全性...员工：奥特能2.0...电池从来没有装过",
       "id": "1721"
     },
     {
       "dimension": "痛点",
       "is_match": true,
-      "value": "晕车",
-      "remarks": "客户提及晕车问题",
-      "original_utterances": "客户：我摩本来就开了，我也晕车，蓝骏的出租车我真坐坐不住。",
+      "value": "开放式",
+      "remarks": "已识别痛点",
+      "original_utterances": "客户：晕吧...员工：防晕的...员工：蓝骏的出租车我真坐坐不住",
       "id": "1722"
     },
     {
@@ -130,42 +130,42 @@
     },
     {
       "dimension": "金融意向",
-      "is_match": true,
-      "value": "有",
-      "remarks": "客户关注金融方案",
-      "original_utterances": "员工：如果我如享500的话，一享现。",
+      "is_match": false,
+      "value": "未提及",
+      "remarks": "对话中未提及金融意向",
+      "original_utterances": "",
       "id": "1725"
     },
     {
       "dimension": "顾虑点/关注点",
-      "is_match": false,
-      "value": "未提及",
-      "remarks": "对话中未提及顾虑点",
-      "original_utterances": "",
+      "is_match": true,
+      "value": "开放式",
+      "remarks": "已识别顾虑点/关注点",
+      "original_utterances": "客户：外观有点小...员工：外观的话这个的话它反正是偏圆润一点...客户：因这个你是感觉空间小还是车辆外观小？",
       "id": "1727"
     },
     {
       "dimension": "购车时间",
-      "is_match": true,
-      "value": "近1-3天",
-      "remarks": "客户近期计划购车",
-      "original_utterances": "员工：早小前一天，最后一天。",
+      "is_match": false,
+      "value": "未提及",
+      "remarks": "对话中未提及购车时间",
+      "original_utterances": "",
       "id": "1728"
     },
     {
-      "id": "1729",
       "dimension": "决策障碍",
-      "is_match": false,
-      "value": "未提及",
-      "remarks": "未提及该维度信息",
-      "original_utterances": ""
+      "is_match": true,
+      "value": "开放式",
+      "remarks": "已识别决策障碍",
+      "original_utterances": "客户：外观有点小...员工：外观的话这个的话它反正是偏圆润一点",
+      "id": "1729"
     },
     {
       "dimension": "客户态度",
       "is_match": true,
       "value": "积极",
-      "remarks": "客户态度积极",
-      "original_utterances": "客户：开始。客户：试驾。客户：行，是比。",
+      "remarks": "已识别客户态度",
+      "original_utterances": "客户：开始。...客户：试驾。",
       "id": "1730"
     }
   ],
@@ -175,7 +175,7 @@
         "id": "1690",
         "dimension": "意向车型标签",
         "is_match": true,
-        "value": "客户明确意向车型为别克至境E7 SUV，对插电混动技术表现出兴趣。",
+        "value": "客户意向车型为至境E7，对插混动力系统表现出浓厚兴趣，并关注其电驱与油驱模式下的加速性能差异。",
         "remarks": "",
         "original_utterances": ""
       }
@@ -184,8 +184,8 @@
       {
         "id": "1690",
         "dimension": "竞品对比标签",
-        "is_match": false,
-        "value": "",
+        "is_match": true,
+        "value": "客户曾乘坐蓝骏出租车，体验不佳，认为该车型不适合家庭出行，以此作为对比参照。",
         "remarks": "",
         "original_utterances": ""
       }
@@ -195,7 +195,7 @@
         "id": "1690",
         "dimension": "客户基础标签",
         "is_match": true,
-        "value": "这是一位首次到店的家庭用户，购车用途是满足两个孩子的出行需求。",
+        "value": "客户为个人购车，家庭中有两个儿子，购车用途明确为家庭日常使用。",
         "remarks": "",
         "original_utterances": ""
       }
@@ -205,7 +205,7 @@
         "id": "1690",
         "dimension": "核心需求标签",
         "is_match": true,
-        "value": "客户关注家庭SUV的空间表现和安全性，同时存在晕车痛点需要解决方案。",
+        "value": "客户高度关注车辆安全性，特别是电池安全记录，同时在意防晕车功能及外观设计的圆润感。",
         "remarks": "",
         "original_utterances": ""
       }
@@ -225,7 +225,7 @@
         "id": "1690",
         "dimension": "购车决策信息标签",
         "is_match": true,
-        "value": "客户处于车辆体验和评估阶段，决策人为本人，处于试驾评估期。",
+        "value": "客户处于对比阶段，决策需与家人共同商议，目前对顶配智驾功能及后仓智慧屏等配置保持开放态度。",
         "remarks": "",
         "original_utterances": ""
       }
@@ -235,7 +235,7 @@
         "id": "1690",
         "dimension": "服务与行动标签",
         "is_match": true,
-        "value": "客户已完成试乘试驾并表现出积极的态度。",
+        "value": "客户已完成至境E7的试乘试驾，整体态度积极，对近期优惠信息有所关注。",
         "remarks": "",
         "original_utterances": ""
       }

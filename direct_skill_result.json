@@ -1,0 +1,244 @@
+{
+  "detailed_extraction": [
+    {
+      "dimension": "意向车型",
+      "is_match": false,
+      "value": "未提及",
+      "remarks": "对话中未提及意向车型",
+      "original_utterances": "",
+      "id": "1669"
+    },
+    {
+      "dimension": "预算区间",
+      "is_match": true,
+      "value": "15-20万",
+      "remarks": "已识别预算区间",
+      "original_utterances": "15-20万 员工：那后组方指定是.",
+      "id": "1672"
+    },
+    {
+      "dimension": "客户类型",
+      "is_match": false,
+      "value": "未提及",
+      "remarks": "对话中未提及客户类型",
+      "original_utterances": "未提及 ",
+      "id": "1675"
+    },
+    {
+      "dimension": "用途",
+      "is_match": false,
+      "value": "未提及",
+      "remarks": "对话中未提及用途",
+      "original_utterances": "",
+      "id": "1680"
+    },
+    {
+      "dimension": "对比车型",
+      "is_match": true,
+      "value": "威朗拉萨雷, 摩门塔20",
+      "remarks": "已识别对比车型",
+      "original_utterances": "威朗拉萨雷, 摩门塔20 员工：然后这个车应该是威朗拉萨雷...这个智驾的话，就你可以在网上了解一下摩门塔20...",
+      "id": "1683"
+    },
+    {
+      "dimension": "决策人",
+      "is_match": false,
+      "value": "未提及",
+      "remarks": "对话中未提及决策人",
+      "original_utterances": "",
+      "id": "1685"
+    },
+    {
+      "dimension": "体验动作",
+      "is_match": false,
+      "value": "未提及",
+      "remarks": "对话中未提及体验动作",
+      "original_utterances": "",
+      "id": "1687"
+    },
+    {
+      "dimension": "身份",
+      "is_match": true,
+      "value": "个人客户",
+      "remarks": "已识别身份",
+      "original_utterances": "个人客户 ",
+      "id": "1716"
+    },
+    {
+      "dimension": "购车阶段",
+      "is_match": true,
+      "value": "对比阶段",
+      "remarks": "已识别购车阶段",
+      "original_utterances": "对比阶段 ",
+      "id": "1717"
+    },
+    {
+      "dimension": "意向配置",
+      "is_match": true,
+      "value": "全车座椅通风, 后仓智慧屏, 能量回收调节功能, 智驾系统学习视频",
+      "remarks": "已识别意向配置",
+      "original_utterances": "全车座椅通风, 后仓智慧屏, 能量回收调节功能, 智驾系统学习视频 员工：打开全车座椅通风...打开后仓智慧屏.员工：这个智驾的话，就你可以在网上了解一下摩门塔20...",
+      "id": "1718"
+    },
+    {
+      "dimension": "意向动力",
+      "is_match": true,
+      "value": "插混",
+      "remarks": "已识别意向动力",
+      "original_utterances": "插混 ",
+      "id": "1719"
+    },
+    {
+      "dimension": "意向外观/内饰",
+      "is_match": false,
+      "value": "未提及",
+      "remarks": "对话中未提及意向外观/内饰",
+      "original_utterances": "其他(灰色) 员工：这个灰色艳灰色.",
+      "id": "1720"
+    },
+    {
+      "dimension": "关注点",
+      "is_match": false,
+      "value": "未提及",
+      "remarks": "对话中未提及关注点",
+      "original_utterances": "空间, 安全, 配置 ",
+      "id": "1721"
+    },
+    {
+      "dimension": "痛点",
+      "is_match": true,
+      "value": "Lasa Ray出租车乘坐体验差",
+      "remarks": "已识别痛点",
+      "original_utterances": "Lasa Ray出租车乘坐体验差 客户：你俩配合三个不晕吧...蓝骏的出租车我真坐坐不住.",
+      "id": "1722"
+    },
+    {
+      "dimension": "购车方式",
+      "is_match": false,
+      "value": "未提及",
+      "remarks": "对话中未提及购车方式",
+      "original_utterances": "未提及 ",
+      "id": "1723"
+    },
+    {
+      "dimension": "置换意向",
+      "is_match": true,
+      "value": "无置换意向",
+      "remarks": "已识别置换意向",
+      "original_utterances": "无置换意向 ",
+      "id": "1724"
+    },
+    {
+      "dimension": "金融意向",
+      "is_match": false,
+      "value": "未提及",
+      "remarks": "对话中未提及金融意向",
+      "original_utterances": "未提及 ",
+      "id": "1725"
+    },
+    {
+      "dimension": "顾虑点/关注点",
+      "is_match": true,
+      "value": "风噪噪音, 智驾系统学习时间要求(约30分钟), 电池安全性",
+      "remarks": "已识别顾虑点/关注点",
+      "original_utterances": "风噪噪音, 智驾系统学习时间要求(约30分钟), 电池安全性 员工：这个车它为啥就我就真龙插混去...员工：这个智驾的话，就你可以在网上了解一下摩门塔20...",
+      "id": "1727"
+    },
+    {
+      "dimension": "购车时间",
+      "is_match": true,
+      "value": "近期",
+      "remarks": "已识别购车时间",
+      "original_utterances": "近期 ",
+      "id": "1728"
+    },
+    {
+      "dimension": "决策障碍",
+      "is_match": true,
+      "value": "智能驾驶系统需要约30分钟的培训时间",
+      "remarks": "已识别决策障碍",
+      "original_utterances": "智能驾驶系统需要约30分钟的培训时间 员工：这个智驾的话，就你可以在网上了解一下摩门塔20...员工：这个车我感觉皮还是比一皮油车大部分油车没有平衡。这个车反正百分里加速是6.8秒...",
+      "id": "1729"
+    },
+    {
+      "dimension": "客户态度",
+      "is_match": true,
+      "value": "积极",
+      "remarks": "已识别客户态度",
+      "original_utterances": "积极 客户：你看应该合适我放款了。客户：七月份网。客户：想。< end_of_box >",
+      "id": "1730"
+    }
+  ],
+  "summary_tags": {
+    "意向车型标签": [
+      {
+        "id": "1690",
+        "dimension": "意向车型标签",
+        "is_match": true,
+        "value": "客户在15-20万预算范围内，对插混动力车型感兴趣，正在对比威朗拉萨雷和摩门塔20。",
+        "remarks": "",
+        "original_utterances": ""
+      }
+    ],
+    "竞品对比标签": [
+      {
+        "id": "1690",
+        "dimension": "竞品对比标签",
+        "is_match": true,
+        "value": "客户正在对比威朗拉萨雷与摩门塔20，重点关注风噪噪音表现和智能驾驶系统功能差异。",
+        "remarks": "",
+        "original_utterances": ""
+      }
+    ],
+    "客户基础标签": [
+      {
+        "id": "1690",
+        "dimension": "客户基础标签",
+        "is_match": true,
+        "value": "客户为首次到店的个人用户，处于购车对比阶段，近期有购买计划且态度积极。",
+        "remarks": "",
+        "original_utterances": ""
+      }
+    ],
+    "核心需求标签": [
+      {
+        "id": "1690",
+        "dimension": "核心需求标签",
+        "is_match": true,
+        "value": "客户关注全车座椅通风、后仓智慧屏等舒适性配置，同时重视噪音控制与智能驾驶系统的易用性。",
+        "remarks": "",
+        "original_utterances": ""
+      }
+    ],
+    "预算与购车方式标签": [
+      {
+        "id": "1690",
+        "dimension": "预算与购车方式标签",
+        "is_match": false,
+        "value": "",
+        "remarks": "",
+        "original_utterances": ""
+      }
+    ],
+    "购车决策信息标签": [
+      {
+        "id": "1690",
+        "dimension": "购车决策信息标签",
+        "is_match": true,
+        "value": "客户处于购车评估对比阶段，对智能驾驶系统约30分钟的培训时间有顾虑，但整体决策意愿积极。",
+        "remarks": "",
+        "original_utterances": ""
+      }
+    ],
+    "服务与行动标签": [
+      {
+        "id": "1690",
+        "dimension": "服务与行动标签",
+        "is_match": true,
+        "value": "客户已完成试乘试驾体验，对产品功能表现出浓厚兴趣。",
+        "remarks": "",
+        "original_utterances": ""
+      }
+    ]
+  }
+}

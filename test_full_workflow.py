@@ -35,14 +35,14 @@ def extract_in_chunks(client, text, chunk_size=1500):
     start = 0
     chunk_num = 0
     
-    print(f"📝 文本长度: {text_length} 字符")
+    print(f"文本长度: {text_length} 字符")
     
     while start < text_length:
         chunk_num += 1
         end = min(start + chunk_size, text_length)
         chunk = text[start:end]
         
-        print(f"🔄 处理片段 {chunk_num}: {start+1}-{end} 字符")
+        print(f"处理片段 {chunk_num}: {start+1}-{end} 字符")
         
         # 调用LLM提取
         result = extract_single_chunk(client, chunk, chunk_num)
@@ -69,9 +69,12 @@ def extract_single_chunk(client, chunk, chunk_num):
     
     try:
         response = client.chat(prompt)
+        # 添加调试输出
+        print(f"片段 {chunk_num} LLM响应:")
+        print(f"{response[:500]}...")
         return parse_simple_format(response)
     except Exception as e:
-        print(f"❌ 提取片段 {chunk_num} 失败: {str(e)[:100]}")
+        print(f"提取片段 {chunk_num} 失败: {str(e)[:100]}")
         return None
 
 def parse_simple_format(response):
@@ -92,10 +95,13 @@ def parse_simple_format(response):
             original = parts[2].strip() if len(parts) > 2 else ""
             
             if dimension and value:
+                # 根据用户要求设置字段
+                is_match = value != '未提及'
                 extraction_map[dimension] = {
-                    'value': value if value != '未提及' else '',
-                    'original_utterances': original,
-                    'is_match': value != '未提及'
+                    'value': value,  # 保持原始值，包括"未提及"
+                    'remarks': '已识别' + dimension if is_match else '对话中未提及' + dimension,  # 命中原因
+                    'original_utterances': original if original else '',  # 客户原话
+                    'is_match': is_match
                 }
     
     return extraction_map
@@ -107,22 +113,26 @@ def merge_results(results):
     for result in results:
         for dimension, data in result.items():
             if dimension not in merged:
-                merged[dimension] = data
+                merged[dimension] = data.copy()
             else:
                 # 如果已有数据且当前数据也是匹配的，合并原文依据
                 if data.get('is_match'):
                     existing = merged[dimension]
-                    if existing.get('value') != data.get('value'):
-                        # 值不同，取第一个或合并
-                        if existing.get('value'):
+                    # 合并值（保持标准格式）
+                    if existing.get('value') and existing['value'] != '未提及':
+                        if data.get('value') and data['value'] != '未提及' and existing['value'] != data['value']:
                             existing['value'] = existing['value'] + '; ' + data['value']
-                        else:
-                            existing['value'] = data['value']
+                    elif data.get('value') and data['value'] != '未提及':
+                        existing['value'] = data['value']
                     # 合并原文依据
                     if existing.get('original_utterances'):
-                        existing['original_utterances'] = existing['original_utterances'] + '; ' + data.get('original_utterances', '')
+                        if data.get('original_utterances'):
+                            existing['original_utterances'] = existing['original_utterances'] + '; ' + data['original_utterances']
                     else:
                         existing['original_utterances'] = data.get('original_utterances', '')
+                    # 更新命中状态
+                    existing['is_match'] = True
+                    existing['remarks'] = '已识别' + dimension
     
     return merged
 
@@ -158,14 +168,16 @@ def convert_to_standard_format(extraction_map):
         data = extraction_map.get(dimension, {})
         is_match = data.get('is_match', False)
         value = data.get('value', '') if is_match else '未提及'
+        remarks = data.get('remarks', '') if is_match else f"对话中未提及{dimension}"
+        original_utterances = data.get('original_utterances', '')
         
         detailed_extraction.append({
             'id': dim_id,
             'dimension': dimension,
             'is_match': is_match,
-            'value': value,
-            'remarks': f"已识别{dimension}" if is_match else f"对话中未提及{dimension}",
-            'original_utterances': data.get('original_utterances', '')
+            'value': value,           # 标准维度值
+            'remarks': remarks,       # 命中原因（来自提取结果）
+            'original_utterances': original_utterances  # 客户原话
         })
     
     return {'detailed_extraction': detailed_extraction}
@@ -179,7 +191,7 @@ def main():
     print("=" * 80)
 
     # 步骤1: 使用 LLM 分段提取原始信息
-    print("\n📝 步骤1: 使用 LLM 分段提取销售对话维度...")
+    print("\n步骤1: 使用 LLM 分段提取销售对话维度...")
     print("-" * 80)
 
     client = LiteLLMClient()
@@ -190,11 +202,11 @@ def main():
     # 转换为标准JSON格式
     llm_result = convert_to_standard_format(extraction_map)
     
-    print(f"\n✅ LLM分段提取完成！")
-    print(f"📊 提取了 {len([d for d in llm_result['detailed_extraction'] if d['is_match']])} 个匹配维度")
+    print(f"\nLLM分段提取完成！")
+    print(f"提取了 {len([d for d in llm_result['detailed_extraction'] if d['is_match']])} 个匹配维度")
 
     # 步骤2: 使用 Skill 进行后处理
-    print("\n🔧 步骤2: 使用 Skill 后处理器进行标准化处理...")
+    print("\n步骤2: 使用 Skill 后处理器进行标准化处理...")
     print("-" * 80)
 
     # 创建后处理器实例
@@ -204,33 +216,33 @@ def main():
     result = processor.process(llm_result)
 
     # 步骤3: 输出最终结果
-    print("\n📋 步骤3: 输出最终结果...")
+    print("\n步骤3: 输出最终结果...")
     print("-" * 80)
 
     # 统计匹配数量
     matched_count = sum(1 for item in result['detailed_extraction'] if item['is_match'])
     total_count = len(result['detailed_extraction'])
 
-    print(f"\n📊 提取统计：共{total_count}个维度 | 已匹配: {matched_count} | 未提及: {total_count - matched_count}")
+    print(f"\n提取统计：共{total_count}个维度 | 已匹配: {matched_count} | 未提及: {total_count - matched_count}")
 
     # 打印详细提取结果
-    print("\n📝 详细提取结果：")
+    print("\n详细提取结果：")
     print("-" * 80)
     for item in result['detailed_extraction']:
-        status = "✅" if item['is_match'] else "❌"
+        status = "OK" if item['is_match'] else "--"
         print(f"{status} {item['dimension']}: {item['value']}")
 
     # 打印摘要标签
-    print("\n🏷️ 会话总结标签：")
+    print("\n会话总结标签：")
     print("-" * 80)
     for tag_name, tag_items in result['summary_tags'].items():
         if tag_items and tag_items[0]['is_match']:
-            print(f"📌 {tag_name}: {tag_items[0]['value']}")
+            print(f"## {tag_name}: {tag_items[0]['value']}")
         else:
-            print(f"📌 {tag_name}: （无匹配信息）")
+            print(f"## {tag_name}: （无匹配信息）")
 
     # 输出JSON格式结果
-    print("\n� JSON格式输出：")
+    print("\nJSON格式输出：")
     print("-" * 80)
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
@@ -238,7 +250,7 @@ def main():
     output_file = "extraction_result.json"
     with open(output_file, 'w', encoding='utf-8') as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
-    print(f"\n💾 结果已保存到: {output_file}")
+    print(f"\n结果已保存到: {output_file}")
 
 if __name__ == "__main__":
     main()

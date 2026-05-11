@@ -8,6 +8,7 @@ import json
 import re
 import sys
 import os
+import time
 
 # 添加 deerflow 路径用于调用 LLM
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'backend', 'packages', 'harness'))
@@ -114,10 +115,14 @@ class SalesTextPostProcessor:
             try:
                 self.deerflow_client = DeerFlowClient(
                     agent_name="text-extraction-agent",
-                    thinking_enabled=False  # 关闭思考功能
+                    thinking_enabled=False,
+                    available_skills=set()  # 禁用所有技能，确保直接返回文本
                 )
+                print(f"✅ DeerFlowClient 初始化成功（已禁用工具）", file=sys.stderr)
             except Exception as e:
-                print(f"警告: 无法初始化 DeerFlowClient: {e}", file=sys.stderr)
+                print(f"❌ 无法初始化 DeerFlowClient: {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc(file=sys.stderr)
 
     def _apply_overrides(self, **kwargs):
         for key, value in kwargs.items():
@@ -131,6 +136,7 @@ class SalesTextPostProcessor:
         self.required_dimensions = extraction_config['required_dimensions']
         self.focus_options = extraction_config['focus_options']
         self.car_models = extraction_config['car_models']
+        self.segment_threshold = extraction_config.get('segment_threshold', 1500)
         self.output_config = self.config.get('output', {})
 
     def process(self, llm_result):
@@ -193,14 +199,130 @@ class SalesTextPostProcessor:
         return result
 
     def _normalize_item(self, item):
-        """标准化单个维度项"""
+        """标准化单个维度项 - 包含值映射"""
+        dimension = item.get('dimension', '')
+        value = item.get('value', '未提及')
+        is_match = item.get('is_match', True)
+        
+        # 如果值为"未提及"，直接返回
+        if value == '未提及' or not is_match:
+            return {
+                "dimension": dimension,
+                "is_match": False,
+                "value": "未提及",
+                "remarks": item.get('remarks', '未提及该维度信息'),
+                "original_utterances": item.get('original_utterances', '')
+            }
+        
+        # 根据配置进行值映射
+        mapped_value = self._map_value(dimension, value)
+        
         return {
-            "dimension": item.get('dimension', ''),
-            "is_match": item.get('is_match', True),
-            "value": item.get('value', '未提及'),
-            "remarks": item.get('remarks', ''),
+            "dimension": dimension,
+            "is_match": mapped_value != '未提及',
+            "value": mapped_value,
+            "remarks": item.get('remarks', self._generate_remarks(dimension, mapped_value)),
             "original_utterances": item.get('original_utterances', '')
         }
+    
+    def _map_value(self, dimension, value):
+        """根据配置映射值到标准值 - 使用LLM进行智能映射"""
+        # 查找该维度的配置
+        for dim_config in self.required_dimensions:
+            if dim_config['dimension'] == dimension:
+                # 支持 values 和 options 两种字段名
+                allowed_values = dim_config.get('values', dim_config.get('options', []))
+                
+                # 如果是开放式文本，直接返回原值
+                if allowed_values == ['开放式文本'] or allowed_values == ['开放式']:
+                    return value
+                
+                # 检查是否在允许的值列表中（精确匹配）
+                if value in allowed_values:
+                    return value
+                
+                # 尝试模糊匹配（去除空格、标点等）
+                normalized_value = re.sub(r'[\s，,。.、/\\]', '', value)
+                for allowed in allowed_values:
+                    normalized_allowed = re.sub(r'[\s，,。.、/\\]', '', allowed)
+                    if normalized_value == normalized_allowed or normalized_value in normalized_allowed:
+                        return allowed
+                
+                # 使用LLM进行智能值映射
+                mapped_value = self._map_value_with_llm(dimension, value, allowed_values)
+                if mapped_value and mapped_value != '未提及':
+                    return mapped_value
+                
+                # 如果没有匹配到，返回原值
+                return value
+        
+        return value
+    
+    def _call_llm_with_retry(self, prompt, max_retries=3, retry_delay=2):
+        """带重试机制的LLM调用"""
+        last_error = None
+        
+        for attempt in range(max_retries):
+            try:
+                response = self.deerflow_client.chat(prompt)
+                if response and response.strip():
+                    return response
+                else:
+                    print(f"⚠️ LLM响应为空，尝试重试 ({attempt + 1}/{max_retries})", file=sys.stderr)
+            except Exception as e:
+                last_error = e
+                print(f"⚠️ LLM调用失败 ({attempt + 1}/{max_retries}): {e}", file=sys.stderr)
+            
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)
+        
+        print(f"❌ LLM调用重试{max_retries}次后仍失败: {last_error}", file=sys.stderr)
+        return None
+    
+    def _map_value_with_llm(self, dimension, value, allowed_values):
+        """使用LLM进行智能值映射"""
+        if not self.deerflow_client:
+            return None
+        
+        prompt = f"""
+        请将以下提取值映射到指定维度的标准值：
+        
+        维度名称：{dimension}
+        提取值：{value}
+        
+        允许的标准值列表：{', '.join(allowed_values)}
+        
+        规则：
+        1. 从允许的标准值列表中选择最匹配的一个值
+        2. 如果提取值包含"未提及"、"不知道"、"不清楚"等，返回"未提及"
+        3. 如果确实无法匹配任何标准值，返回"未提及"
+        4. 只返回映射后的标准值，不要解释
+        
+        请直接返回映射结果：
+        """
+        
+        response = self._call_llm_with_retry(prompt)
+        if not response:
+            return None
+        
+        result = response.strip()
+        
+        if result in allowed_values:
+            return result
+        
+        normalized_result = re.sub(r'[\s，,。.、/\\]', '', result)
+        for allowed in allowed_values:
+            normalized_allowed = re.sub(r'[\s，,。.、/\\]', '', allowed)
+            if normalized_result == normalized_allowed:
+                return allowed
+        
+        return None
+    
+    def _generate_remarks(self, dimension, value):
+        """生成命中原因"""
+        if value == '未提及':
+            return f'未提及{dimension}'
+        return f'已识别{dimension}'
 
     def _generate_summary_tags(self, extractions):
         """生成摘要标签 - 使用逻辑拼接（降级方案）"""
@@ -220,19 +342,16 @@ class SalesTextPostProcessor:
 
     def _generate_summary_tags_with_llm(self, extractions):
         """生成摘要标签 - 使用 LLM 生成连贯的会话总结"""
-        # 如果没有 DeerFlowClient，使用降级方案
         if not self.deerflow_client:
             print("警告: DeerFlowClient 不可用，使用降级方案生成摘要", file=sys.stderr)
             return self._generate_summary_tags(extractions)
 
-        # 构建提取结果文本，供 LLM 参考
         matched_items = [item for item in extractions if item.get('is_match')]
         extraction_text = "\n".join([
             f"- {item['dimension']}: {item['value']}（{item.get('original_utterances', '')[:50]}）" 
             for item in matched_items
         ])
 
-        # 构建 LLM 提示词
         prompt = f"""请根据以下提取的销售对话维度信息，生成7个连贯的会话总结标签：
 
 【提取的维度信息】
@@ -261,10 +380,16 @@ class SalesTextPostProcessor:
 请直接输出JSON，不需要任何解释。
 """
 
+        print(f"📡 调用 LLM 生成会话总结，prompt长度: {len(prompt)}", file=sys.stderr)
+        response = self._call_llm_with_retry(prompt, max_retries=3, retry_delay=2)
+        
+        if not response:
+            print("❌ LLM重试后仍失败，使用降级方案", file=sys.stderr)
+            return self._generate_summary_tags(extractions)
+        
+        print(f"📥 LLM响应长度: {len(response)}", file=sys.stderr)
+        
         try:
-            response = self.deerflow_client.chat(prompt)
-            
-            # 提取 JSON
             if "```json" in response:
                 start = response.find("```json") + 7
                 end = response.find("```", start)
@@ -275,11 +400,13 @@ class SalesTextPostProcessor:
             else:
                 json_str = response
 
+            print(f"📝 解析JSON，长度: {len(json_str)}", file=sys.stderr)
             result = json.loads(json_str)
             return result.get('summary_tags', self._generate_summary_tags(extractions))
         
-        except Exception as e:
-            print(f"警告: LLM 调用失败，使用降级方案: {e}", file=sys.stderr)
+        except json.JSONDecodeError as e:
+            print(f"❌ JSON解析失败: {e}", file=sys.stderr)
+            print(f"原始响应: {response[:200]}...", file=sys.stderr)
             return self._generate_summary_tags(extractions)
 
     def _generate_car_model_summary(self, extraction_map):

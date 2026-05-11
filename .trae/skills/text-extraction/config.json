@@ -1,5 +1,6 @@
 {
     "extraction": {
+        "segment_threshold": 1500,
         "focus_options": ["价格", "续航", "空间", "油耗", "配置", "安全", "品牌"],
         "car_models": [
             "至境E7", "至境世家", "至境L7", "GL8陆尊燃油版", "全新GL8陆尊",
@@ -7,27 +8,27 @@
             "GL8陆上公务舱", "别克世纪", "威朗Pro", "微蓝6", "别克E5"
         ],
         "required_dimensions": [
-            {"id": "1669", "dimension": "意向车型"},
-            {"id": "1672", "dimension": "预算区间"},
-            {"id": "1675", "dimension": "客户类型"},
-            {"id": "1680", "dimension": "用途"},
-            {"id": "1683", "dimension": "对比车型"},
-            {"id": "1685", "dimension": "决策人"},
-            {"id": "1687", "dimension": "体验动作"},
-            {"id": "1716", "dimension": "身份"},
-            {"id": "1717", "dimension": "购车阶段"},
-            {"id": "1718", "dimension": "意向配置"},
-            {"id": "1719", "dimension": "意向动力"},
-            {"id": "1720", "dimension": "意向外观/内饰"},
-            {"id": "1721", "dimension": "关注点"},
-            {"id": "1722", "dimension": "痛点"},
-            {"id": "1723", "dimension": "购车方式"},
-            {"id": "1724", "dimension": "置换意向"},
-            {"id": "1725", "dimension": "金融意向"},
-            {"id": "1727", "dimension": "顾虑点/关注点"},
-            {"id": "1728", "dimension": "购车时间"},
-            {"id": "1729", "dimension": "决策障碍"},
-            {"id": "1730", "dimension": "客户态度"}
+            {"id": "1669", "dimension": "意向车型", "values": ["至境E7", "至境世家", "至境L7", "GL8陆尊", "昂科威S", "昂科威PLUS", "君越", "君威", "GL8陆尚", "GL8陆上公务舱", "别克世纪", "威朗Pro", "微蓝6", "别克E5", "未提及"], "multi_select": true, "description": "客户明确提及或询问的具体车型名称"},
+            {"id": "1672", "dimension": "预算区间", "values": ["10万内", "10-15万", "15-20万", "20万以上", "未提及"], "multi_select": false, "description": "客户明确提及的购车预算区间"},
+            {"id": "1675", "dimension": "客户类型", "values": ["首次到店", "复访", "转介绍", "未提及"], "multi_select": false, "description": "客户到店类型"},
+            {"id": "1680", "dimension": "用途", "values": ["家用", "商务", "未提及"], "multi_select": false, "description": "客户购车主要用途"},
+            {"id": "1683", "dimension": "对比车型", "values": ["开放式文本"], "multi_select": true, "description": "非别克品牌的竞品车型，严禁输出别克车型"},
+            {"id": "1685", "dimension": "决策人", "values": ["本人", "家人", "公司审批", "未提及"], "multi_select": false, "description": "购车决策人"},
+            {"id": "1687", "dimension": "体验动作", "values": ["展车静态体验", "试乘试驾", "购车议价", "未提及"], "multi_select": true, "description": "客户在店内的体验行为"},
+            {"id": "1716", "dimension": "身份", "values": ["客户", "未提及"], "multi_select": false, "description": "客户身份"},
+            {"id": "1717", "dimension": "购车阶段", "values": ["试驾评估期", "了解阶段", "未提及"], "multi_select": false, "description": "客户当前购车阶段"},
+            {"id": "1718", "dimension": "意向配置", "values": ["开放式文本"], "multi_select": true, "description": "客户关注的车辆配置"},
+            {"id": "1719", "dimension": "意向动力", "values": ["插混", "增程", "纯电", "燃油", "未提及"], "multi_select": false, "description": "客户意向的动力类型，增程≠插混"},
+            {"id": "1720", "dimension": "意向外观/内饰", "values": ["黑", "白", "灰", "其他(颜色)", "未提及"], "multi_select": false, "description": "颜色偏好"},
+            {"id": "1721", "dimension": "关注点", "values": ["价格", "续航", "空间", "油耗", "配置", "安全", "品牌", "未提及"], "multi_select": true, "description": "客户关注重点，最多返回3个"},
+            {"id": "1722", "dimension": "痛点", "values": ["开放式文本"], "multi_select": true, "description": "客户提及的痛点问题"},
+            {"id": "1723", "dimension": "购车方式", "values": ["贷款", "全款", "未提及"], "multi_select": false, "description": "贷款=提及贷款/分期/月供；全款=提及全款；置换≠贷款"},
+            {"id": "1724", "dimension": "置换意向", "values": ["有", "无", "未提及"], "multi_select": false, "description": "是否有旧车置换意向"},
+            {"id": "1725", "dimension": "金融意向", "values": ["有", "无", "未提及"], "multi_select": true, "description": "是否有贷款意向"},
+            {"id": "1727", "dimension": "顾虑点/关注点", "values": ["开放式文本"], "multi_select": true, "description": "客户其他顾虑"},
+            {"id": "1728", "dimension": "购车时间", "values": ["近1-3天", "近1周", "近1个月", "未提及"], "multi_select": false, "description": "计划购车时间"},
+            {"id": "1729", "dimension": "决策障碍", "values": ["开放式文本"], "multi_select": true, "description": "影响决策的因素"},
+            {"id": "1730", "dimension": "客户态度", "values": ["积极", "消极", "无法判定"], "multi_select": false, "description": "仅允许此三者之一"}
         ]
     },
     "output": {
