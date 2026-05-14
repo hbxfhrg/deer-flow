@@ -396,3 +396,61 @@ async def thread_token_usage(thread_id: str, request: Request) -> ThreadTokenUsa
     run_store = get_run_store(request)
     agg = await run_store.aggregate_tokens_by_thread(thread_id)
     return ThreadTokenUsageResponse(thread_id=thread_id, **agg)
+
+
+# ---------------------------------------------------------------------------
+# Roleplay Evaluation endpoints
+# ---------------------------------------------------------------------------
+
+
+class RoleplayEvaluationResponse(BaseModel):
+    """Response model for roleplay evaluation result."""
+    thread_id: str
+    run_id: str
+    status: Literal["pending", "completed", "not_found"]
+    evaluation: dict[str, Any] | None = None
+
+
+@router.get("/{thread_id}/runs/{run_id}/evaluation", response_model=RoleplayEvaluationResponse)
+@require_permission("runs", "read", owner_check=True)
+async def get_roleplay_evaluation(
+    thread_id: str,
+    run_id: str,
+    request: Request,
+) -> RoleplayEvaluationResponse:
+    """Get the roleplay evaluation result for a specific run.
+    
+    The evaluation runs asynchronously in the background after the agent completes.
+    This endpoint allows the frontend to poll for the evaluation result without
+    blocking the main conversation flow.
+    
+    Returns:
+        - status="pending": Evaluation is still being processed
+        - status="completed": Evaluation is ready, includes evaluation data
+        - status="not_found": No evaluation found for this run
+    """
+    from deerflow.agents.middlewares.roleplay_evaluation_middleware import get_evaluation_result
+    
+    result = get_evaluation_result(thread_id, run_id)
+    
+    if result is None:
+        return RoleplayEvaluationResponse(
+            thread_id=thread_id,
+            run_id=run_id,
+            status="not_found",
+        )
+    
+    if result.get("status") == "pending":
+        return RoleplayEvaluationResponse(
+            thread_id=thread_id,
+            run_id=run_id,
+            status="pending",
+        )
+    
+    # Completed - return the evaluation data
+    return RoleplayEvaluationResponse(
+        thread_id=thread_id,
+        run_id=run_id,
+        status="completed",
+        evaluation=result.get("evaluation"),
+    )
