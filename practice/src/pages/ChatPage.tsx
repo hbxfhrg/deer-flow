@@ -1,10 +1,12 @@
-import { RefreshCw, HelpCircle, Settings, LogOut } from 'lucide-react';
+import { ArrowLeft, RefreshCw, HelpCircle, Settings, LogOut } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { MessageBubble } from '@/components/MessageBubble';
 import { EvaluationCard } from '@/components/EvaluationCard';
 import { ChatInput } from '@/components/ChatInput';
 import { useRoleplay } from '@/hooks/useRoleplay';
 
 export function ChatPage() {
+  const navigate = useNavigate();
   const {
     messages,
     isLoading,
@@ -22,6 +24,13 @@ export function ChatPage() {
       <header className="bg-white border-b border-gray-100 px-4 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
+            {/* 返回按钮 */}
+            <button
+              onClick={() => navigate('/')}
+              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
             <div className="w-10 h-10 bg-primary-500 rounded-xl flex items-center justify-center">
               <span className="text-white font-bold text-lg">D</span>
             </div>

@@ -1,11 +1,19 @@
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HomePage } from './pages/HomePage';
 import { ChatPage } from './pages/ChatPage';
 import './index.css';
 
 function App() {
   return (
-    <div className="h-full w-full">
-      <ChatPage />
-    </div>
+    <BrowserRouter>
+      <div className="h-screen w-full">
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/chat" element={<ChatPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </div>
+    </BrowserRouter>
   );
 }
 

@@ -23,16 +23,31 @@ export function useRoleplay() {
     const poll = async () => {
       try {
         const result: EvaluationResult = await api.evaluation.get(threadId, runId);
+        console.log('Evaluation poll result:', result);
         setEvaluationStatus(result.status);
 
-        if (result.status === 'completed' && result.evaluation?.evaluation) {
-          setEvaluation(result.evaluation.evaluation);
+        // 检查多种可能的评估数据格式
+        let evaluationData: Evaluation | null = null;
+        if (result.evaluation?.evaluation) {
+          evaluationData = result.evaluation.evaluation;
+        } else if (result.evaluation && typeof result.evaluation === 'object' && !('evaluation' in result.evaluation)) {
+          evaluationData = result.evaluation as Evaluation;
+        }
+
+        if (result.status === 'completed' && evaluationData) {
+          setEvaluation(evaluationData);
           if (pollingRef.current) {
             clearTimeout(pollingRef.current);
             pollingRef.current = null;
           }
         } else if (result.status === 'pending') {
-          pollingRef.current = window.setTimeout(poll, 500);
+          pollingRef.current = window.setTimeout(poll, 1000);
+        } else if (result.status === 'completed') {
+          // 评估已完成但没有数据，停止轮询
+          if (pollingRef.current) {
+            clearTimeout(pollingRef.current);
+            pollingRef.current = null;
+          }
         }
       } catch (error) {
         console.error('Failed to poll evaluation:', error);
@@ -83,12 +98,40 @@ export function useRoleplay() {
       console.log('Extracted messages:', messagesData);
       
       // 转换为 Message 类型
-      return messagesData.map((msg: any) => ({
-        id: msg.id || msg.uuid || `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        role: msg.role || msg.type || 'assistant',
-        content: msg.content || (msg.text || ''),
-        createdAt: msg.createdAt || msg.timestamp || new Date().toISOString(),
-      }));
+      return messagesData.map((msg: any) => {
+        // 根据 type 字段判断角色
+        let role: 'user' | 'assistant' = 'assistant';
+        if (msg.role) {
+          role = msg.role === 'user' ? 'user' : 'assistant';
+        } else if (msg.type) {
+          // LangChain 格式：human 表示用户，ai 或 assistant 表示助手
+          if (msg.type === 'human' || msg.type === 'user') {
+            role = 'user';
+          } else if (msg.type === 'ai' || msg.type === 'assistant') {
+            role = 'assistant';
+          }
+        }
+        
+        // 提取内容，处理多种格式
+        let content = '';
+        if (typeof msg.content === 'string') {
+          content = msg.content;
+        } else if (msg.content && typeof msg.content === 'object') {
+          // LangChain 格式：content 可能是对象
+          if (msg.content.text) {
+            content = msg.content.text;
+          } else if (msg.content.content) {
+            content = msg.content.content;
+          }
+        }
+        
+        return {
+          id: msg.id || msg.uuid || `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          role,
+          content,
+          createdAt: msg.createdAt || msg.timestamp || new Date().toISOString(),
+        };
+      });
     } catch (e) {
       console.error('Failed to parse event data:', e);
       return [];
@@ -101,7 +144,7 @@ export function useRoleplay() {
     
     try {
       const allMessages = parseMessagesFromEvent(event.data);
-      const aiMessages = allMessages.filter((m: Message) => m.role === 'assistant' || m.role === 'ai');
+      const aiMessages = allMessages.filter((m: Message) => m.role === 'assistant');
       
       if (aiMessages.length > 0) {
         const latestAiMessage = aiMessages[aiMessages.length - 1];
