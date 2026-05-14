@@ -8,6 +8,8 @@ interface Scene {
   enabled: boolean;
   rounds: number;
   difficulty: 'easy' | 'medium' | 'hard';
+  timePerRound?: number; // 每轮时间限制（秒）
+  totalTimeLimit?: number; // 总时长限制（秒）
   knowledgeBase?: string; // 知识库内容
   summary?: {
     title: string;
@@ -78,6 +80,8 @@ export function ScenePage() {
     description: '',
     rounds: 5,
     difficulty: 'easy' as 'easy' | 'medium' | 'hard',
+    timePerRound: 120, // 默认每轮2分钟
+    totalTimeLimit: 600, // 默认总时长10分钟
     knowledgeBase: '',
     summary: {
       title: '',
@@ -164,6 +168,8 @@ export function ScenePage() {
         enabled: true,
         rounds: newScene.rounds,
         difficulty: newScene.difficulty,
+        timePerRound: newScene.timePerRound,
+        totalTimeLimit: newScene.totalTimeLimit,
         knowledgeBase: newScene.knowledgeBase,
         summary: newScene.summary.title ? newScene.summary : undefined,
         examCategories: newScene.examCategories.length > 0 ? newScene.examCategories : undefined,
@@ -176,6 +182,8 @@ export function ScenePage() {
       description: '',
       rounds: 5,
       difficulty: 'easy',
+      timePerRound: 120,
+      totalTimeLimit: 600,
       knowledgeBase: '',
       summary: { title: '', categories: [], keyPoints: [] },
       examCategories: [],
@@ -251,6 +259,24 @@ export function ScenePage() {
                     </p>
                   </div>
                 </div>
+                
+                {/* 显示时间设置 */}
+                {(scene.timePerRound || scene.totalTimeLimit) && (
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    {scene.timePerRound && (
+                      <div>
+                        <p className="text-xs text-gray-400 mb-1">⏱️ 每轮时间</p>
+                        <p className="font-semibold text-gray-800">{scene.timePerRound} 秒</p>
+                      </div>
+                    )}
+                    {scene.totalTimeLimit && (
+                      <div>
+                        <p className="text-xs text-gray-400 mb-1">⏰ 总时长</p>
+                        <p className="font-semibold text-gray-800">{scene.totalTimeLimit} 秒</p>
+                      </div>
+                    )}
+                  </div>
+                )}
                 
                 {/* 显示考核范围 */}
                 {scene.examCategories && scene.examCategories.length > 0 && (
@@ -376,6 +402,37 @@ export function ScenePage() {
                       </button>
                     ))}
                   </div>
+                </div>
+              </div>
+              
+              {/* 时间设置 */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">⏱️ 每轮时间限制（秒）</label>
+                  <input
+                    type="number"
+                    min="30"
+                    max="600"
+                    step="30"
+                    value={newScene.timePerRound}
+                    onChange={(e) => setNewScene(prev => ({ ...prev, timePerRound: Number(e.target.value) }))}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">默认 120 秒（2分钟）</p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">⏰ 总时长限制（秒）</label>
+                  <input
+                    type="number"
+                    min="60"
+                    max="1800"
+                    step="60"
+                    value={newScene.totalTimeLimit}
+                    onChange={(e) => setNewScene(prev => ({ ...prev, totalTimeLimit: Number(e.target.value) }))}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">默认 600 秒（10分钟）</p>
                 </div>
               </div>
               
