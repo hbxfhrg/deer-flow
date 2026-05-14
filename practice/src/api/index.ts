@@ -42,6 +42,9 @@ export const api = {
         input: { messages },
         config: {
           thinking_enabled: false,
+          configurable: {
+            agent_name: 'roleplay-agent',
+          },
         },
       });
       console.log('API: Run created:', response.data);

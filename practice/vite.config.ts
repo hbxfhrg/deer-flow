@@ -10,18 +10,8 @@ export default defineConfig({
     },
   },
   server: {
+    port: 4000,
     proxy: {
-      '/api/threads': {
-        target: 'http://localhost:2024',
-        changeOrigin: true,
-        secure: false,
-      },
-      '/api/langgraph': {
-        target: 'http://localhost:2024',
-        changeOrigin: true,
-        secure: false,
-      },
-      // 其他 API 请求仍然使用 Gateway (8001)
       '/api': {
         target: 'http://localhost:8001',
         changeOrigin: true,

@@ -3,7 +3,7 @@
 Write-Host "=== 清理旧进程 ===" -ForegroundColor Yellow
 
 # 方法1：通过端口查找并停止进程
-$ports = @(3000, 3001, 3002, 8001, 8000)
+$ports = @(3000, 3001, 3002, 8001, 8000, 4000)
 foreach ($port in $ports) {
     $pids = netstat -ano | Select-String ":$port\s" | ForEach-Object {
         ($_ -split '\s+')[-1]
@@ -85,8 +85,17 @@ Write-Host "=== 启动前端服务 ===" -ForegroundColor Green
 # 启动前端
 Start-Process powershell -ArgumentList "-NoExit", "cd $PSScriptRoot\frontend; pnpm dev"
 
+Start-Sleep -Seconds 1
+
+Write-Host ""
+Write-Host "=== 启动对练前端服务 ===" -ForegroundColor Green
+
+# 启动对练前端
+Start-Process powershell -ArgumentList "-NoExit", "cd $PSScriptRoot\practice; npm run dev"
+
 Write-Host ""
 Write-Host "=== 重启完成 ===" -ForegroundColor Green
 Write-Host "  后端: http://localhost:8001" -ForegroundColor Cyan
 Write-Host "  前端: http://localhost:3000" -ForegroundColor Cyan
+Write-Host "  对练前端: http://localhost:4000" -ForegroundColor Cyan
 Write-Host ""

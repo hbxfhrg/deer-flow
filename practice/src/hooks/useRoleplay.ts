@@ -46,6 +46,80 @@ export function useRoleplay() {
     poll();
   }, []);
 
+  // 解析消息数据
+  const parseMessagesFromEvent = (eventData: string): Message[] => {
+    try {
+      const data = JSON.parse(eventData);
+      console.log('Parsed event data:', data);
+      
+      // 尝试多种可能的数据格式
+      let messagesData: any[] = [];
+      
+      // 格式1: 直接在根级别
+      if (Array.isArray(data)) {
+        messagesData = data;
+      }
+      // 格式2: data.messages
+      else if (data.messages && Array.isArray(data.messages)) {
+        messagesData = data.messages;
+      }
+      // 格式3: data.data.messages
+      else if (data.data && data.data.messages && Array.isArray(data.data.messages)) {
+        messagesData = data.data.messages;
+      }
+      // 格式4: 检查 values 字段（来自日志）
+      else if (data.values && Array.isArray(data.values)) {
+        messagesData = data.values;
+      }
+      // 格式5: data.data.values
+      else if (data.data && data.data.values && Array.isArray(data.data.values)) {
+        messagesData = data.data.values;
+      }
+      // 格式6: 检查 state 字段（LangGraph 格式）
+      else if (data.state && data.state.messages && Array.isArray(data.state.messages)) {
+        messagesData = data.state.messages;
+      }
+      
+      console.log('Extracted messages:', messagesData);
+      
+      // 转换为 Message 类型
+      return messagesData.map((msg: any) => ({
+        id: msg.id || msg.uuid || `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        role: msg.role || msg.type || 'assistant',
+        content: msg.content || (msg.text || ''),
+        createdAt: msg.createdAt || msg.timestamp || new Date().toISOString(),
+      }));
+    } catch (e) {
+      console.error('Failed to parse event data:', e);
+      return [];
+    }
+  };
+
+  // 处理 SSE 事件
+  const handleSseEvent = useCallback((event: MessageEvent) => {
+    console.log('SSE event received:', event.type, event.data);
+    
+    try {
+      const allMessages = parseMessagesFromEvent(event.data);
+      const aiMessages = allMessages.filter((m: Message) => m.role === 'assistant' || m.role === 'ai');
+      
+      if (aiMessages.length > 0) {
+        const latestAiMessage = aiMessages[aiMessages.length - 1];
+        setMessages(prev => {
+          const existingAiIndex = prev.findIndex(m => m.role === 'assistant' && m.id === latestAiMessage.id);
+          if (existingAiIndex >= 0) {
+            const updated = [...prev];
+            updated[existingAiIndex] = latestAiMessage;
+            return updated;
+          }
+          return [...prev, latestAiMessage];
+        });
+      }
+    } catch (e) {
+      console.error('Failed to process SSE event:', e);
+    }
+  }, []);
+
   // 初始化新对话并发送第一条消息
   const initConversation = useCallback(async () => {
     setIsLoading(true);
@@ -76,38 +150,20 @@ export function useRoleplay() {
       // 启动流式响应
       const eventSource = api.stream.create(thread.thread_id, run.run_id);
       
-      eventSource.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          const messagesData = data.data?.messages;
-          
-          if (messagesData && Array.isArray(messagesData)) {
-            const aiMessages = messagesData.filter((m: Message) => m.role === 'assistant');
-            if (aiMessages.length > 0) {
-              const latestAiMessage = aiMessages[aiMessages.length - 1];
-              setMessages(prev => {
-                const existingAiIndex = prev.findIndex(m => m.role === 'assistant' && m.id === latestAiMessage.id);
-                if (existingAiIndex >= 0) {
-                  const updated = [...prev];
-                  updated[existingAiIndex] = latestAiMessage;
-                  return updated;
-                }
-                return [...prev, latestAiMessage];
-              });
-            }
-          }
-        } catch (e) {
-          console.error('Failed to parse stream event:', e);
-        }
-      };
+      // 监听所有类型的事件
+      eventSource.addEventListener('values', handleSseEvent);
+      eventSource.addEventListener('messages', handleSseEvent);
+      eventSource.addEventListener('message', handleSseEvent);
       
       eventSource.onerror = () => {
+        console.error('EventSource error');
         eventSource.close();
         setIsTyping(false);
         setIsLoading(false);
       };
       
       eventSource.addEventListener('end', () => {
+        console.log('EventSource ended');
         eventSource.close();
         setIsTyping(false);
         setIsLoading(false);
@@ -120,7 +176,7 @@ export function useRoleplay() {
       console.error('Failed to create thread:', error);
       setIsLoading(false);
     }
-  }, [startEvaluationPolling]);
+  }, [startEvaluationPolling, handleSseEvent]);
 
   // 发送消息并启动流式响应
   const sendMessage = useCallback(async (content: string) => {
@@ -154,38 +210,13 @@ export function useRoleplay() {
       console.log('Creating EventSource for:', currentThreadId, run.run_id);
       const eventSource = api.stream.create(currentThreadId, run.run_id);
 
-      eventSource.onmessage = (event) => {
-        console.log('EventSource message received:', event.data);
-        try {
-          const data = JSON.parse(event.data);
-          const messagesData = data.data?.messages;
-          
-          if (messagesData && Array.isArray(messagesData)) {
-            const aiMessages = messagesData.filter((m: Message) => m.role === 'assistant');
-            if (aiMessages.length > 0) {
-              const latestAiMessage = aiMessages[aiMessages.length - 1];
-              setMessages(prev => {
-                const existingAiIndex = prev.findIndex(m => m.role === 'assistant' && m.id === latestAiMessage.id);
-                if (existingAiIndex >= 0) {
-                  const updated = [...prev];
-                  updated[existingAiIndex] = latestAiMessage;
-                  return updated;
-                }
-                return [...prev, latestAiMessage];
-              });
-            }
-          }
-        } catch (e) {
-          console.error('Failed to parse stream event:', e);
-        }
-      };
+      // 监听所有类型的事件
+      eventSource.addEventListener('values', handleSseEvent);
+      eventSource.addEventListener('messages', handleSseEvent);
+      eventSource.addEventListener('message', handleSseEvent);
 
       eventSource.onerror = (err) => {
         console.error('EventSource error:', err);
-        // 不要立即关闭，等待 end 事件
-        // eventSource.close();
-        // setIsTyping(false);
-        // setIsLoading(false);
       };
 
       eventSource.addEventListener('end', () => {
@@ -203,7 +234,7 @@ export function useRoleplay() {
       setIsTyping(false);
       setIsLoading(false);
     }
-  }, [currentThreadId, isLoading, startEvaluationPolling]);
+  }, [currentThreadId, isLoading, startEvaluationPolling, handleSseEvent]);
 
   // 清理轮询
   useEffect(() => {

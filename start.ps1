@@ -22,10 +22,22 @@ Write-Host ""
 # Start new terminal for frontend
 Start-Process powershell -ArgumentList "-NoExit", "cd frontend; pnpm dev"
 
+# Wait 1 second
+Start-Sleep -Seconds 1
+
+# Start practice frontend service
+Write-Host "Starting practice frontend service..."
+Write-Host "Command: cd practice; npm run dev"
+Write-Host ""
+
+# Start new terminal for practice frontend
+Start-Process powershell -ArgumentList "-NoExit", "cd practice; npm run dev"
+
 Write-Host ""
 Write-Host "=== Service Start Complete ==="
 Write-Host "Backend service: http://localhost:8001"
 Write-Host "Frontend service: http://localhost:3000"
+Write-Host "Practice frontend: http://localhost:4000"
 Write-Host "API docs: http://localhost:8001/docs"
 Write-Host ""
 Write-Host "Press any key to exit..."
