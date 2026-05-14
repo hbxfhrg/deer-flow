@@ -47,6 +47,8 @@ class AgentConfig(BaseModel):
     # - [] (explicit empty list): disable all skills
     # - ["skill1", "skill2"]: load only the specified skills
     skills: list[str] | None = None
+    # suggestions_enabled controls whether the UI shows follow-up question suggestions
+    suggestions_enabled: bool = True
 
 
 def resolve_agent_dir(name: str, *, user_id: str | None = None) -> Path:

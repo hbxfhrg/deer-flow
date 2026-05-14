@@ -23,7 +23,9 @@ import {
   hasContent,
   hasPresentFiles,
   hasReasoning,
+  isHiddenFromUIMessage,
 } from "@/core/messages/utils";
+import { parseRoleplayEvaluationFromContent, type RoleplayEvaluation } from "./message-list-item";
 import { useRehypeSplitWordsIntoSpans } from "@/core/rehype";
 import type { Subtask } from "@/core/tasks";
 import { useUpdateSubtask } from "@/core/tasks/context";
@@ -176,6 +178,38 @@ export function MessageList({
   const rehypePlugins = useRehypeSplitWordsIntoSpans(thread.isLoading);
   const updateSubtask = useUpdateSubtask();
   const messages = thread.messages;
+
+  // Build a map of human message indices to their roleplay evaluations
+  // Evaluations come from AI messages and apply to the previous human message
+  const humanEvaluations = useMemo(() => {
+    const map = new Map<number, RoleplayEvaluation>();
+    let humanIndex = -1;
+
+    for (const msg of messages) {
+      if (isHiddenFromUIMessage(msg) || msg.name === "todo_reminder") {
+        continue;
+      }
+      if (msg.type === "human") {
+        humanIndex++;
+      } else if (msg.type === "ai") {
+        const content = extractContentFromMessage(msg);
+        const evaluation = content ? parseRoleplayEvaluationFromContent(content) : null;
+        if (evaluation && humanIndex >= 0) {
+          // Use parsed round or fall back to humanIndex + 1
+          const round = evaluation.round ?? humanIndex + 1;
+          // Use parsed is_complete or check if this is the last evaluation (has no next human message)
+          const isComplete = evaluation.is_complete ?? false;
+          map.set(humanIndex, {
+            ...evaluation,
+            round,
+            is_complete: isComplete,
+          });
+        }
+      }
+    }
+    return map;
+  }, [messages]);
+
   const groupedMessages = getMessageGroups(messages);
   const turnUsageMessagesByGroupIndex =
     getAssistantTurnUsageMessages(groupedMessages);
@@ -265,29 +299,36 @@ export function MessageList({
           hasMore={hasMoreHistory}
           loadMore={loadMoreHistory}
         />
-        {groupedMessages.map((group, groupIndex) => {
-          const turnUsageMessages = turnUsageMessagesByGroupIndex[groupIndex];
+        {(() => {
+          let humanMsgIndex = -1;
+          return groupedMessages.map((group, groupIndex) => {
+            const turnUsageMessages = turnUsageMessagesByGroupIndex[groupIndex];
 
-          if (group.type === "human" || group.type === "assistant") {
-            return (
-              <div
-                key={group.id}
-                className={cn(
-                  "w-full",
-                  group.type === "assistant" && "group/assistant-turn",
-                )}
-              >
-                {group.messages.map((msg) => {
-                  return (
-                    <MessageListItem
-                      key={`${group.id}/${msg.id}`}
-                      message={msg}
-                      isLoading={thread.isLoading}
-                      threadId={threadId}
-                      showCopyButton={group.type !== "assistant"}
-                    />
-                  );
-                })}
+            if (group.type === "human" || group.type === "assistant") {
+              return (
+                <div
+                  key={`${group.type}-${groupIndex}`}
+                  className={cn(
+                    "w-full",
+                    group.type === "assistant" && "group/assistant-turn",
+                  )}
+                >
+                  {group.messages.map((msg, msgIndex) => {
+                    if (msg.type === "human") {
+                      humanMsgIndex++;
+                    }
+                    const evaluation = msg.type === "human" ? humanEvaluations.get(humanMsgIndex) : undefined;
+                    return (
+                      <MessageListItem
+                        key={`${group.type}-${groupIndex}-msg-${msgIndex}`}
+                        message={msg}
+                        isLoading={thread.isLoading}
+                        threadId={threadId}
+                        showCopyButton={group.type !== "assistant"}
+                        roleplayEvaluation={evaluation}
+                      />
+                    );
+                  })}
                 {renderTokenUsage({
                   messages: group.messages,
                   turnUsageMessages,
@@ -300,7 +341,7 @@ export function MessageList({
             const message = group.messages[0];
             if (message && hasContent(message)) {
               return (
-                <div key={group.id} className="w-full">
+                <div key={`${group.type}-${groupIndex}`} className="w-full">
                   <MarkdownContent
                     content={extractContentFromMessage(message)}
                     isLoading={thread.isLoading}
@@ -323,7 +364,7 @@ export function MessageList({
               }
             }
             return (
-              <div className="w-full" key={group.id}>
+              <div className="w-full" key={`${group.type}-${groupIndex}`}>
                 {group.messages[0] && hasContent(group.messages[0]) && (
                   <MarkdownContent
                     content={extractContentFromMessage(group.messages[0])}
@@ -437,7 +478,7 @@ export function MessageList({
             }
             return (
               <div
-                key={"subtask-group-" + group.id}
+                key={`subtask-group-${groupIndex}`}
                 className="relative z-1 flex flex-col gap-2"
               >
                 {results}
@@ -450,7 +491,7 @@ export function MessageList({
             );
           }
           return (
-            <div key={"group-" + group.id} className="w-full">
+            <div key={`group-${group.type}-${groupIndex}`} className="w-full">
               <MessageGroup
                 messages={group.messages}
                 isLoading={thread.isLoading}
@@ -468,7 +509,8 @@ export function MessageList({
               })}
             </div>
           );
-        })}
+          });
+        })()}
         {thread.isLoading && <StreamingIndicator className="my-4" />}
         <div style={{ height: `${paddingBottom}px` }} />
       </ConversationContent>

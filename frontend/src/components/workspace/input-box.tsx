@@ -112,6 +112,7 @@ export function InputBox({
   onContextChange,
   onSubmit,
   onStop,
+  hideSuggestions = false, // 新增：禁用建议功能
   ...props
 }: Omit<ComponentProps<typeof PromptInput>, "onSubmit"> & {
   assistantId?: string | null;
@@ -133,6 +134,7 @@ export function InputBox({
   isWelcomeMode?: boolean;
   threadId: string;
   initialValue?: string;
+  hideSuggestions?: boolean; // 新增：禁用建议功能
   onContextChange?: (
     context: Omit<
       AgentThreadContext,
@@ -360,7 +362,7 @@ export function InputBox({
       return;
     }
 
-    if (disabled || isMock) {
+    if (disabled || isMock || hideSuggestions) {
       return;
     }
 

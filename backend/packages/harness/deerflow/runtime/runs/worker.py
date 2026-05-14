@@ -269,6 +269,7 @@ async def run_agent(
         logger.info("Run %s: streaming with modes %s (requested: %s)", run_id, lg_modes, requested_modes)
 
         # 7. Stream using graph.astream
+        logger.info("Run %s: Agent streaming started", run_id)
         if len(lg_modes) == 1 and not stream_subgraphs:
             # Single mode, no subgraphs: astream yields raw chunks
             single_mode = lg_modes[0]
@@ -277,6 +278,8 @@ async def run_agent(
                     logger.info("Run %s abort requested — stopping", run_id)
                     break
                 sse_event = _lg_mode_to_sse_event(single_mode)
+                # Log the event being sent
+                _log_stream_event(run_id, single_mode, sse_event, chunk)
                 await bridge.publish(run_id, sse_event, serialize(chunk, mode=single_mode))
         else:
             # Multiple modes or subgraphs: astream yields tuples
@@ -295,7 +298,10 @@ async def run_agent(
                     continue
 
                 sse_event = _lg_mode_to_sse_event(mode)
+                # Log the event being sent
+                _log_stream_event(run_id, mode, sse_event, chunk)
                 await bridge.publish(run_id, sse_event, serialize(chunk, mode=mode))
+        logger.info("Run %s: Agent streaming finished", run_id)
 
         # 8. Final status
         if record.abort_event.is_set():
@@ -353,43 +359,20 @@ async def run_agent(
         )
 
     finally:
-        # Flush any buffered journal events and persist completion data
-        if journal is not None:
-            try:
-                await journal.flush()
-            except Exception:
-                logger.warning("Failed to flush journal for run %s", run_id, exc_info=True)
-
-            try:
-                # Persist token usage + convenience fields to RunStore
-                completion = journal.get_completion_data()
-                await run_manager.update_run_completion(run_id, status=record.status.value, **completion)
-            except Exception:
-                logger.warning("Failed to persist run completion for %s (non-fatal)", run_id, exc_info=True)
-
-        # Sync title from checkpoint to threads_meta.display_name
-        if checkpointer is not None and thread_store is not None:
-            try:
-                ckpt_config = {"configurable": {"thread_id": thread_id, "checkpoint_ns": ""}}
-                ckpt_tuple = await checkpointer.aget_tuple(ckpt_config)
-                if ckpt_tuple is not None:
-                    ckpt = getattr(ckpt_tuple, "checkpoint", {}) or {}
-                    title = ckpt.get("channel_values", {}).get("title")
-                    if title:
-                        await thread_store.update_display_name(thread_id, title)
-            except Exception:
-                logger.debug("Failed to sync title for thread %s (non-fatal)", thread_id)
-
-        # Update threads_meta status based on run outcome
-        if thread_store is not None:
-            try:
-                final_status = "idle" if record.status == RunStatus.success else record.status.value
-                await thread_store.update_status(thread_id, final_status)
-            except Exception:
-                logger.debug("Failed to update thread_meta status for %s (non-fatal)", thread_id)
-
+        # CRITICAL: Notify frontend immediately that stream is ending
+        # This must happen FIRST so the UI can update without waiting for cleanup
         await bridge.publish_end(run_id)
-        asyncio.create_task(bridge.cleanup(run_id, delay=60))
+
+        # Background cleanup tasks - these can run after stream ends
+        # Use create_task to avoid blocking the response
+        if journal is not None:
+            asyncio.create_task(_flush_journal(journal, run_manager, run_id, record, journal))
+
+        # Sync title and status can also be done in background
+        if checkpointer is not None and thread_store is not None:
+            asyncio.create_task(_sync_thread_metadata(
+                checkpointer, thread_store, thread_id, run_id
+            ))
 
 
 # ---------------------------------------------------------------------------
@@ -567,3 +550,99 @@ def _unpack_stream_item(
 
     # Fallback: single-element output from first mode
     return lg_modes[0] if lg_modes else None, item
+
+
+def _log_stream_event(run_id: str, mode: str, sse_event: str, chunk: Any) -> None:
+    """Log stream events for debugging.
+
+    Provides visibility into:
+    - messages mode: shows message content being sent
+    - updates mode: shows actions/steps being executed
+    - values mode: shows state changes
+    """
+    if mode == "messages" and isinstance(chunk, tuple) and len(chunk) == 2:
+        # messages mode: (message_chunk, metadata)
+        msg_chunk, metadata = chunk
+        if hasattr(msg_chunk, "content") and msg_chunk.content:
+            content = str(msg_chunk.content)[:200]  # Truncate long content
+            role = getattr(msg_chunk, "type", "unknown")
+            logger.info("Run %s [%s] LLM response chunk: [%s] %s", run_id, sse_event, role, content)
+        elif hasattr(msg_chunk, "additional_kwargs"):
+            # Tool messages
+            tool_calls = msg_chunk.additional_kwargs.get("tool_calls", [])
+            if tool_calls:
+                for tc in tool_calls:
+                    func_name = tc.get("function", {}).get("name", "unknown")
+                    logger.info("Run %s [%s] Tool call: %s", run_id, sse_event, func_name)
+
+    elif mode == "updates" and isinstance(chunk, dict):
+        # updates mode: shows what action/step is executing
+        for node_name, node_updates in chunk.items():
+            if isinstance(node_updates, dict):
+                # Extract meaningful info from updates
+                update_type = list(node_updates.keys())[0] if node_updates else "unknown"
+                logger.info("Run %s [%s] Action started: node=%s, update=%s", run_id, sse_event, node_name, update_type)
+            else:
+                logger.info("Run %s [%s] Action started: node=%s", run_id, sse_event, node_name)
+
+    elif mode == "values" and isinstance(chunk, dict):
+        # values mode: log state changes (abbreviated)
+        keys = list(chunk.keys())
+        if keys:
+            logger.debug("Run %s [%s] State update: keys=%s", run_id, sse_event, keys)
+
+    elif mode == "tasks" and isinstance(chunk, tuple):
+        # tasks mode: shows subgraph execution
+        if len(chunk) == 2:
+            ns_or_name, task_result = chunk
+            logger.info("Run %s [%s] Subtask started: %s", run_id, sse_event, ns_or_name)
+
+
+# ---------------------------------------------------------------------------
+# Background cleanup helpers (non-blocking)
+# ---------------------------------------------------------------------------
+
+
+async def _flush_journal(
+    journal: Any,
+    run_manager: RunManager,
+    run_id: str,
+    record: RunRecord,
+    journal_obj: Any,
+) -> None:
+    """Flush journal and persist completion data. Runs in background."""
+    try:
+        await journal.flush()
+    except Exception:
+        logger.warning("Failed to flush journal for run %s", run_id, exc_info=True)
+
+    try:
+        completion = journal.get_completion_data()
+        await run_manager.update_run_completion(run_id, status=record.status.value, **completion)
+    except Exception:
+        logger.warning("Failed to persist run completion for %s (non-fatal)", run_id, exc_info=True)
+
+
+async def _sync_thread_metadata(
+    checkpointer: Any,
+    thread_store: Any,
+    thread_id: str,
+    run_id: str,
+) -> None:
+    """Sync thread title and status. Runs in background."""
+    try:
+        ckpt_config = {"configurable": {"thread_id": thread_id, "checkpoint_ns": ""}}
+        ckpt_tuple = await checkpointer.aget_tuple(ckpt_config)
+        if ckpt_tuple is not None:
+            ckpt = getattr(ckpt_tuple, "checkpoint", {}) or {}
+            title = ckpt.get("channel_values", {}).get("title")
+            if title:
+                await thread_store.update_display_name(thread_id, title)
+    except Exception:
+        logger.debug("Failed to sync title for thread %s (non-fatal)", thread_id)
+
+    try:
+        from deerflow.runtime.runs.schemas import RunStatus
+        await thread_store.update_status(thread_id, "idle")
+    except Exception:
+        logger.debug("Failed to update thread_meta status for %s (non-fatal)", thread_id)

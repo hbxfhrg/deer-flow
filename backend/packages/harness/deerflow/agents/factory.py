@@ -282,7 +282,16 @@ def _assemble_from_features(
 
             chain.append(LoopDetectionMiddleware.from_config(LoopDetectionConfig()))
 
-    # --- [13] Clarification (always last among built-ins) ---
+    # --- [13] RoleplayEvaluation ---
+    if feat.roleplay_evaluation is not False:
+        if isinstance(feat.roleplay_evaluation, AgentMiddleware):
+            chain.append(feat.roleplay_evaluation)
+        else:
+            from deerflow.agents.middlewares.roleplay_evaluation_middleware import RoleplayEvaluationMiddleware
+
+            chain.append(RoleplayEvaluationMiddleware())
+
+    # --- [14] Clarification (always last among built-ins) ---
     chain.append(ClarificationMiddleware())
     extra_tools.append(ask_clarification_tool)
 

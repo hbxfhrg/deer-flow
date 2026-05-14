@@ -28,6 +28,7 @@ class AgentResponse(BaseModel):
     tool_groups: list[str] | None = Field(default=None, description="Optional tool group whitelist")
     skills: list[str] | None = Field(default=None, description="Optional skill whitelist (None=all, []=none)")
     soul: str | None = Field(default=None, description="SOUL.md content")
+    suggestions_enabled: bool = Field(default=True, description="Whether to show follow-up question suggestions")
 
 
 class AgentsListResponse(BaseModel):
@@ -100,6 +101,7 @@ def _agent_config_to_response(agent_cfg: AgentConfig, include_soul: bool = False
         tool_groups=agent_cfg.tool_groups,
         skills=agent_cfg.skills,
         soul=soul,
+        suggestions_enabled=agent_cfg.suggestions_enabled,
     )
 
 
