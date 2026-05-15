@@ -1,5 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
-import type { Thread, Run, EvaluationResult, Message } from '@/types';
+import type { Thread, Run, EvaluationResult, Message, UserInfo, LoginResponse } from '@/types';
 
 const API_BASE_URL = '/api';
 
@@ -11,7 +11,173 @@ const axiosInstance: AxiosInstance = axios.create({
   },
 });
 
+// 添加请求拦截器，自动带上token
+axiosInstance.interceptors.request.use((config) => {
+  const token = localStorage.getItem('roleplay_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// 添加响应拦截器，处理401未授权
+axiosInstance.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('roleplay_token');
+      localStorage.removeItem('roleplay_user');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
 export const api = {
+  // 认证接口
+  auth: {
+    async login(username: string, password: string): Promise<LoginResponse> {
+      const response = await axiosInstance.post('/roleplay/auth/login', {
+        username,
+        password,
+      });
+      if (response.data.success) {
+        localStorage.setItem('roleplay_token', response.data.data.token);
+        localStorage.setItem('roleplay_user', JSON.stringify(response.data.data));
+      }
+      return response.data;
+    },
+    
+    async getUserInfo(userId: number): Promise<UserInfo> {
+      const response = await axiosInstance.get(`/roleplay/auth/user/${userId}`);
+      return response.data;
+    },
+    
+    async logout(): Promise<void> {
+      try {
+        await axiosInstance.post('/roleplay/auth/logout');
+      } catch (e) {
+        // ignore error
+      } finally {
+        localStorage.removeItem('roleplay_token');
+        localStorage.removeItem('roleplay_user');
+        window.location.href = '/login';
+      }
+    },
+    
+    async getCurrentUserInfo(): Promise<UserInfo | null> {
+      const user = this.getCurrentUser();
+      if (!user) return null;
+      try {
+        const response = await axiosInstance.get(`/roleplay/auth/user/${user.user_id}`);
+        return response.data.data;
+      } catch {
+        return user;
+      }
+    },
+    
+    getCurrentUser(): UserInfo | null {
+      const userStr = localStorage.getItem('roleplay_user');
+      return userStr ? JSON.parse(userStr) : null;
+    },
+    
+    isLoggedIn(): boolean {
+      return !!localStorage.getItem('roleplay_token');
+    },
+  },
+
+  // 场景接口
+  scenes: {
+    async list(): Promise<any[]> {
+      const response = await axiosInstance.get('/roleplay/scenes');
+      return response.data.scenes;
+    },
+    
+    async get(sceneId: string): Promise<any> {
+      const response = await axiosInstance.get(`/roleplay/scenes/${sceneId}`);
+      return response.data;
+    },
+    
+    async create(data: any): Promise<any> {
+      const response = await axiosInstance.post('/roleplay/scenes', data);
+      return response.data;
+    },
+    
+    async update(sceneId: string, data: any): Promise<any> {
+      const response = await axiosInstance.put(`/roleplay/scenes/${sceneId}`, data);
+      return response.data;
+    },
+    
+    async delete(sceneId: string): Promise<any> {
+      const response = await axiosInstance.delete(`/roleplay/scenes/${sceneId}`);
+      return response.data;
+    },
+  },
+
+  // 评估接口
+  evaluations: {
+    async list(threadId?: string, userId?: string): Promise<any[]> {
+      const params: Record<string, string> = {};
+      if (threadId) params.thread_id = threadId;
+      if (userId) params.user_id = userId;
+      const response = await axiosInstance.get('/roleplay/evaluations', { params });
+      return response.data.evaluations;
+    },
+    
+    async get(evalId: string): Promise<any> {
+      const response = await axiosInstance.get(`/roleplay/evaluations/${evalId}`);
+      return response.data;
+    },
+    
+    async create(data: any): Promise<any> {
+      const response = await axiosInstance.post('/roleplay/evaluations', data);
+      return response.data;
+    },
+  },
+
+  // 练习记录接口
+  practiceRecords: {
+    async list(userId?: string, sceneId?: string): Promise<any[]> {
+      const params: Record<string, string> = {};
+      if (userId) params.user_id = userId;
+      if (sceneId) params.scene_id = sceneId;
+      const response = await axiosInstance.get('/roleplay/practice-records', { params });
+      return response.data.records;
+    },
+    
+    async create(data: any): Promise<any> {
+      const response = await axiosInstance.post('/roleplay/practice-records', data);
+      return response.data;
+    },
+    
+    async complete(recordId: string, data: any): Promise<any> {
+      const response = await axiosInstance.post(`/roleplay/practice-records/${recordId}/complete`, data);
+      return response.data;
+    },
+  },
+
+  // 统计接口
+  statistics: {
+    async getUserStats(userId: string): Promise<any> {
+      const response = await axiosInstance.get(`/roleplay/statistics/user/${userId}`);
+      return response.data;
+    },
+    
+    async getSceneStats(sceneId?: string): Promise<any> {
+      const params: Record<string, string> = {};
+      if (sceneId) params.scene_id = sceneId;
+      const response = await axiosInstance.get('/roleplay/statistics/scenes', { params });
+      return response.data;
+    },
+    
+    async getLeaderboard(limit: number = 10): Promise<any> {
+      const response = await axiosInstance.get('/roleplay/statistics/leaderboard', {
+        params: { limit },
+      });
+      return response.data;
+    },
+  },
+
   // 线程管理
   threads: {
     async create(metadata?: Record<string, any>): Promise<Thread> {

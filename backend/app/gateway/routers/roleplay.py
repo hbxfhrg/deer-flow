@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from deerflow.roleplay import get_db
 from deerflow.roleplay.services import SceneService, EvaluationService, PracticeRecordService, StatisticsService
+from deerflow.roleplay.auth_service import AuthService
 
 router = APIRouter(prefix="/api/roleplay", tags=["roleplay"])
 
@@ -264,3 +265,34 @@ async def get_leaderboard(limit: Optional[int] = 10):
             "avg_score": round(l.avg_score, 2) if l.avg_score else 0
         } for l in leaderboard
     ]}
+
+# ==================== Authentication APIs ====================
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+@router.post("/auth/login", summary="用户登录")
+async def login(request: LoginRequest):
+    result = await AuthService.login(request.username, request.password)
+    if not result["success"]:
+        raise HTTPException(status_code=401, detail=result["message"])
+    return result
+
+@router.get("/auth/user/{user_id}", summary="获取用户信息")
+async def get_user_info(user_id: int):
+    result = await AuthService.get_user_info(user_id)
+    if not result["success"]:
+        raise HTTPException(status_code=404, detail=result["message"])
+    return result
+
+@router.post("/auth/logout", summary="用户退出登录")
+async def logout():
+    return {"success": True, "message": "退出登录成功"}
+
+@router.get("/auth/me", summary="获取当前用户信息")
+async def get_current_user(user_id: int):
+    result = await AuthService.get_user_info(user_id)
+    if not result["success"]:
+        raise HTTPException(status_code=404, detail=result["message"])
+    return result

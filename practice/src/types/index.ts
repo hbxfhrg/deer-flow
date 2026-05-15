@@ -44,3 +44,20 @@ export interface StreamEvent {
     status?: string;
   };
 }
+
+// 认证相关类型
+export interface UserInfo {
+  user_id: number;
+  user_name: string;
+  nick_name?: string;
+  email?: string;
+  phonenumber?: string;
+  token?: string;
+  expire_time?: string;
+}
+
+export interface LoginResponse {
+  success: boolean;
+  message: string;
+  data?: UserInfo;
+}

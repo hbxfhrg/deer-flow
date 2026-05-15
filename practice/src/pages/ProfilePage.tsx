@@ -1,8 +1,33 @@
 import { User, Trophy, BookOpen, Settings, HelpCircle, LogOut, ChevronRight, Star } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { api } from '@/api';
+import type { UserInfo } from '@/types';
 
 export function ProfilePage() {
   const [activeSection, setActiveSection] = useState<string>('overview');
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadUserInfo();
+  }, []);
+
+  const loadUserInfo = async () => {
+    try {
+      const user = await api.auth.getCurrentUserInfo();
+      setUserInfo(user);
+    } catch (error) {
+      console.error('Failed to load user info:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    if (window.confirm('确定要退出登录吗？')) {
+      await api.auth.logout();
+    }
+  };
 
   const userStats = [
     { label: '练习次数', value: '45', icon: BookOpen, color: 'bg-blue-100 text-blue-600' },
@@ -191,15 +216,37 @@ export function ProfilePage() {
     <div className="px-4 py-6">
       {/* 用户信息 */}
       <div className="bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl p-6 text-white mb-6">
-        <div className="flex items-center gap-4">
-          <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
-            <User className="w-8 h-8" />
+        {loading ? (
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center animate-pulse">
+              <User className="w-8 h-8" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold">加载中...</h2>
+              <p className="text-primary-100 text-sm">请稍候</p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-xl font-bold">销售精英</h2>
-            <p className="text-primary-100 text-sm">Lv.8 资深学员</p>
+        ) : userInfo ? (
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
+              <User className="w-8 h-8" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold">{userInfo.nick_name || userInfo.user_name}</h2>
+              <p className="text-primary-100 text-sm">@{userInfo.user_name}</p>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
+              <User className="w-8 h-8" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold">未登录</h2>
+              <p className="text-primary-100 text-sm">请重新登录</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 菜单列表 */}
@@ -223,7 +270,10 @@ export function ProfilePage() {
         })}
         
         <div className="border-t border-gray-100 mt-2">
-          <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-danger-500 hover:bg-danger-50 transition-colors">
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-danger-500 hover:bg-danger-50 transition-colors"
+          >
             <LogOut className="w-5 h-5" />
             <span className="flex-1 text-left font-medium">退出登录</span>
           </button>
