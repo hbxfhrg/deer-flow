@@ -75,6 +75,29 @@ export function ScenePage() {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
   const [summaryPrompt, setSummaryPrompt] = useState(defaultPrompt);
+  // 示例文本
+  const defaultKnowledgeBase = `汽车销售基础知识包括以下几个方面：
+
+产品知识：
+- 了解车型特点和配置参数
+- 掌握竞品对比信息
+- 熟悉车辆性能数据
+
+客户需求分析：
+- 了解客户的预算范围
+- 分析客户的使用用途
+- 识别客户的偏好需求
+
+销售技巧：
+- 有效的沟通技巧
+- 专业的谈判技巧
+- 及时的跟进技巧
+
+售后服务：
+- 提供优质的售后服务
+- 建立长期客户关系
+- 处理客户投诉和反馈`;
+
   const [newScene, setNewScene] = useState({
     name: '',
     description: '',
@@ -82,7 +105,7 @@ export function ScenePage() {
     difficulty: 'easy' as 'easy' | 'medium' | 'hard',
     timePerRound: 120, // 默认每轮2分钟
     totalTimeLimit: 600, // 默认总时长10分钟
-    knowledgeBase: '',
+    knowledgeBase: defaultKnowledgeBase,
     summary: {
       title: '',
       categories: [] as string[],
@@ -184,7 +207,7 @@ export function ScenePage() {
       difficulty: 'easy',
       timePerRound: 120,
       totalTimeLimit: 600,
-      knowledgeBase: '',
+      knowledgeBase: defaultKnowledgeBase,
       summary: { title: '', categories: [], keyPoints: [] },
       examCategories: [],
       scoringRules: '',

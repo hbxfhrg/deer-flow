@@ -179,7 +179,7 @@ export function useRoleplay() {
       const starterMessage: Message = {
         id: `user-${Date.now()}`,
         role: 'user',
-        content: '你好，请开始今天的销售对练，请扮演客户',
+        content: '你好，请开始今天的AI对练，请扮演客户',
         createdAt: new Date().toISOString(),
       };
       

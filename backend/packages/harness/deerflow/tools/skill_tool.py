@@ -5,4 +5,7 @@
 # Re-export from the correct module
 from .skill_manage_tool import *
 
-__all__ = ["skill_manage_tool"]
+# Explicitly define the expected skill_tool attribute/class
+from .skill_manage_tool import skill_manage_tool as skill_tool
+
+__all__ = ["skill_tool"] + __all__ if '__all__' in dir() else ["skill_tool"]

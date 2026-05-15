@@ -44,8 +44,8 @@ const LoginPage = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
             </div>
-            <h1 className="text-2xl font-bold text-gray-800">销售对练系统</h1>
-            <p className="text-gray-500 mt-2">提升销售技能，成就卓越业绩</p>
+            <h1 className="text-2xl font-bold text-gray-800">AI对练</h1>
+            <p className="text-gray-500 mt-2">提升专业技能，成就卓越表现</p>
           </div>
 
           {/* Login Form */}

@@ -35,8 +35,8 @@ export function ChatPage() {
               <span className="text-white font-bold text-lg">D</span>
             </div>
             <div>
-              <h1 className="font-semibold text-gray-800">销售对练</h1>
-              <p className="text-xs text-gray-400">提升您的沟通技巧</p>
+              <h1 className="font-semibold text-gray-800">AI对练</h1>
+              <p className="text-xs text-gray-400">提升您的专业技能</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
