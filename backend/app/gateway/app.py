@@ -22,6 +22,7 @@ from app.gateway.routers import (
     memory,
     models,
     runs,
+    roleplay,
     skills,
     suggestions,
     thread_runs,
@@ -178,6 +179,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     async with langgraph_runtime(app):
         logger.info("LangGraph runtime initialised")
 
+        # Initialize roleplay module database
+        try:
+            from deerflow.roleplay import init_roleplay_db, is_roleplay_db_initialized
+            if not is_roleplay_db_initialized():
+                init_roleplay_db(app.state.config.database)
+                logger.info("Roleplay database initialized")
+            else:
+                logger.info("Roleplay database already initialized")
+        except Exception:
+            logger.exception("Failed to initialize roleplay database (non-fatal)")
+
         # Ensure admin user exists (auto-create on first boot)
         # Must run AFTER langgraph_runtime so app.state.store is available for thread migration
         await _ensure_admin_user(app)
@@ -192,6 +204,23 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.exception("No IM channels configured or channel service failed to start")
 
         yield
+
+        # Stop roleplay database connections on shutdown
+        try:
+            from deerflow.roleplay import close_roleplay_db, is_roleplay_db_initialized
+            if is_roleplay_db_initialized():
+                await asyncio.wait_for(
+                    close_roleplay_db(),
+                    timeout=_SHUTDOWN_HOOK_TIMEOUT_SECONDS,
+                )
+                logger.info("Roleplay database connections closed")
+        except TimeoutError:
+            logger.warning(
+                "Roleplay database shutdown exceeded %.1fs; proceeding with worker exit.",
+                _SHUTDOWN_HOOK_TIMEOUT_SECONDS,
+            )
+        except Exception:
+            logger.exception("Failed to close roleplay database connections")
 
         # Stop channel service on shutdown (bounded to prevent worker hang)
         try:
@@ -352,6 +381,9 @@ This gateway provides custom endpoints for models, MCP configuration, skills, an
 
     # Stateless Runs API (stream/wait without a pre-existing thread)
     app.include_router(runs.router)
+
+    # Roleplay API is mounted at /api/roleplay
+    app.include_router(roleplay.router)
 
     @app.get("/health", tags=["health"])
     async def health_check() -> dict:

@@ -100,3 +100,32 @@ class DatabaseConfig(BaseModel):
                 url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
             return url
         raise ValueError(f"No SQLAlchemy URL for backend={self.backend!r}")
+
+    # -- Roleplay module MySQL configuration --
+    roleplay_db_host: str = Field(
+        default="localhost",
+        description="MySQL host for roleplay module database."
+    )
+    roleplay_db_port: int = Field(
+        default=3306,
+        description="MySQL port for roleplay module database."
+    )
+    roleplay_db_name: str = Field(
+        default="deerflow_roleplay",
+        description="MySQL database name for roleplay module."
+    )
+    roleplay_db_user: str = Field(
+        default="",
+        description="MySQL username for roleplay module database."
+    )
+    roleplay_db_password: str = Field(
+        default="",
+        description="MySQL password for roleplay module database."
+    )
+
+    @property
+    def get_roleplay_db_url(self) -> str:
+        """SQLAlchemy async URL for the roleplay module MySQL database."""
+        if self.roleplay_db_user and self.roleplay_db_password:
+            return f"mysql+aiomysql://{self.roleplay_db_user}:{self.roleplay_db_password}@{self.roleplay_db_host}:{self.roleplay_db_port}/{self.roleplay_db_name}"
+        return f"mysql+aiomysql://{self.roleplay_db_host}:{self.roleplay_db_port}/{self.roleplay_db_name}"

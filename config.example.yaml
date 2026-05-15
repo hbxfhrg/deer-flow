@@ -904,6 +904,12 @@ skill_evolution:
 database:
   backend: sqlite
   sqlite_dir: .deer-flow/data
+  # Roleplay module MySQL configuration
+  roleplay_db_host: localhost
+  roleplay_db_port: 3306
+  roleplay_db_name: deerflow_roleplay
+  roleplay_db_user: $MYSQL_USERNAME
+  roleplay_db_password: $MYSQL_PASSWORD
 
 # ============================================================================
 # Run Events Configuration
