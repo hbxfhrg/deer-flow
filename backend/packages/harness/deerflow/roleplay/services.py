@@ -70,6 +70,10 @@ class SceneService:
                 exam_categories=snake_case_data.get("exam_categories"),
                 scoring_rules=snake_case_data.get("scoring_rules")
             )
+            
+            # prompt_template 存入 metadata_json（无需额外列）
+            if snake_case_data.get("prompt_template"):
+                scene.metadata_json = {**(scene.metadata_json or {}), "prompt_template": snake_case_data["prompt_template"]}
             session.add(scene)
             await session.commit()
             await session.refresh(scene)
@@ -93,6 +97,9 @@ class SceneService:
                     # 特殊处理: enabled -> status
                     if key == "enabled":
                         setattr(scene, "status", 1 if value else 0)
+                    # 特殊处理: promptTemplate -> metadata_json.prompt_template
+                    elif key == "promptTemplate":
+                        scene.metadata_json = {**(scene.metadata_json or {}), "prompt_template": value}
                     elif hasattr(scene, db_key):
                         setattr(scene, db_key, value)
                     elif hasattr(scene, key):

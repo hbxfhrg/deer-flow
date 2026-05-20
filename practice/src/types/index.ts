@@ -60,6 +60,8 @@ export interface Scene {
   summaryText?: string; // 摘要信息（格式：分类:要点，每行一个）
   examCategories?: string; // 考核范围（逗号分隔）
   scoringRules?: string; // 评分规则
+  modelName?: string; // 大模型名称
+  promptTemplate?: string; // 摘要提取自定义提示词模板
 }
 
 // 认证相关类型

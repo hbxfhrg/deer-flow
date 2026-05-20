@@ -13,9 +13,22 @@ class RoleplayBase(DeclarativeBase):
 _engine = None
 _session_factory = None
 
+# ==================== SQL 日志开关 ====================
+# 设为 True 时，在终端打印每条实际执行的 SQL
+# 设 False 或注释掉以下两行则关闭
+_SQL_LOGGING_ENABLED = True
+
+
+def _sql_logging_listener(conn, cursor, statement, parameters, context, executemany):
+    """SQLAlchemy event listener，打印最终执行的 SQL"""
+    print(f"\n[SQL] {statement}")
+    if parameters:
+        print(f"[SQL PARAMS] {parameters}\n")
+
+
 def init_roleplay_db(config: DatabaseConfig):
     global _engine, _session_factory
-    
+
     db_url = config.get_roleplay_db_url
     _engine = create_async_engine(
         db_url,
@@ -23,8 +36,14 @@ def init_roleplay_db(config: DatabaseConfig):
         max_overflow=20,
         echo=False,
         pool_pre_ping=True,
-        pool_recycle=3600
+        pool_recycle=3600,
     )
+
+    # 注册 SQL 日志 listener
+    if _SQL_LOGGING_ENABLED:
+        from sqlalchemy import event
+        event.listen(_engine.sync_engine, "before_cursor_execute", _sql_logging_listener)
+
     _session_factory = async_sessionmaker(_engine, expire_on_commit=False)
 
 def get_session_factory():

@@ -17,7 +17,7 @@ class SceneCreate(BaseModel):
     rounds: Optional[int] = 5
     time_per_round: Optional[int] = Field(default=120, alias="timePerRound")
     total_time_limit: Optional[int] = Field(default=600, alias="totalTimeLimit")
-    model_name: Optional[str] = "gpt-4o-mini"
+    model_name: Optional[str] = Field(default=None, alias="modelName")
     system_prompt: Optional[str] = ""
     user_prompt_template: Optional[str] = ""
     enabled: Optional[bool] = True
@@ -28,6 +28,7 @@ class SceneCreate(BaseModel):
     summary_text: Optional[str] = Field(default=None, alias="summaryText")
     exam_categories: Optional[str] = Field(default=None, alias="examCategories")
     scoring_rules: Optional[str] = Field(default=None, alias="scoringRules")
+    prompt_template: Optional[str] = Field(default=None, alias="promptTemplate")
 
     class Config:
         populate_by_name = True
@@ -39,7 +40,7 @@ class SceneUpdate(BaseModel):
     rounds: Optional[int] = None
     time_per_round: Optional[int] = Field(default=None, alias="timePerRound")
     total_time_limit: Optional[int] = Field(default=None, alias="totalTimeLimit")
-    model_name: Optional[str] = None
+    model_name: Optional[str] = Field(default=None, alias="modelName")
     system_prompt: Optional[str] = None
     user_prompt_template: Optional[str] = None
     enabled: Optional[bool] = None
@@ -50,6 +51,7 @@ class SceneUpdate(BaseModel):
     summary_text: Optional[str] = Field(default=None, alias="summaryText")
     exam_categories: Optional[str] = Field(default=None, alias="examCategories")
     scoring_rules: Optional[str] = Field(default=None, alias="scoringRules")
+    prompt_template: Optional[str] = Field(default=None, alias="promptTemplate")
 
     class Config:
         populate_by_name = True
@@ -117,7 +119,9 @@ async def get_scenes():
             "knowledgeBase": s.knowledge_base,
             "summaryText": s.summary_text,
             "examCategories": s.exam_categories,
-            "scoringRules": s.scoring_rules
+            "scoringRules": s.scoring_rules,
+            # 摘要提取提示词模板（存储在 metadata_json 中）
+            "promptTemplate": (s.metadata_json or {}).get("prompt_template"),
         } for s in scenes
     ]}
 
@@ -180,6 +184,7 @@ async def delete_scene(scene_id: int):
 class ExtractSummaryRequest(BaseModel):
     knowledgeBase: str = Field(description="知识库文本内容")
     promptTemplate: Optional[str] = Field(default=None, description="自定义提示词模板")
+    modelName: Optional[str] = Field(default=None, description="大模型名称，为空则使用系统默认模型")
 
 @router.post("/scenes/extract-summary", summary="提取摘要")
 async def extract_summary(request: ExtractSummaryRequest):
@@ -191,29 +196,49 @@ async def extract_summary(request: ExtractSummaryRequest):
         raise HTTPException(status_code=400, detail="知识库内容不能为空")
     
     # 使用默认模板或自定义模板
-    default_template = """请对以下文本进行分析，提取关键信息：
+    default_template = """你是一位专业的内容分析师，擅长将非结构化文本转化为清晰的结构化笔记。
 
-1. 识别文本中的主要分类（如产品介绍、客户需求、销售策略等）
-2. 提取每个分类下的关键要点
-3. 按照指定格式输出
+请阅读以下提供的文本，并根据其内容执行以下操作：
+1.  **识别维度**：分析文本语义，自动归纳出文中的核心主题或分类维度（例如：产品特点、技术参数、市场表现、用户反馈等，具体维度由文本决定）。
+2.  **提取要点**：在每个维度下，提取最关键的事实、数据、观点或结论。
+3.  **精简表述**：去除口语化、废话和修饰性词语，保留核心信息。
 
-输出格式要求：
-- 每行一个分类:要点
-- 分类和要点之间用英文冒号:分隔
-- 分类尽量简洁（2-4个汉字）
-- 要点描述清晰准确
+**输出格式要求：**
+- 采用"维度名称：要点详情"的格式。
+- 每个维度单独一行。
+- 如果同一维度有多个要点，请用逗号隔开。
+- **仅输出结果**，不要包含解释、前言或后记。
 
-文本内容：
+**参考示例（仅供参考格式，不代表实际维度）：**
+核心优势：零样本学习能力突出，推理效率高
+应用场景：金融风控，智能客服，医疗影像分析
+技术局限：长文本处理能力较弱，存在幻觉风险
+
+**待处理文本：**
 {{TEXT}}"""
     
     prompt = request.promptTemplate.replace("{{TEXT}}", request.knowledgeBase) if request.promptTemplate else default_template.replace("{{TEXT}}", request.knowledgeBase)
     
     try:
-        # 直接创建大模型实例，不经过工作流
-        llm = create_chat_model(
-            name="gpt-4o-mini",
-            thinking_enabled=False
-        )
+        # 归一化：空字符串/空白 视同未指定，使用系统默认第一个模型
+        model_name = (request.modelName or None) and (request.modelName.strip() or None)
+
+        # 使用场景指定的大模型，未指定则使用系统默认第一个模型
+        try:
+            llm = create_chat_model(
+                name=model_name,
+                thinking_enabled=False
+            )
+        except ValueError as ve:
+            if "not found in config" in str(ve):
+                # 指定模型名不在配置中，自动降级到系统默认第一个模型重试
+                import logging
+                logging.getLogger("roleplay").warning(
+                    f"场景指定模型 '{model_name}' 不在 config 中，已自动切换为默认模型"
+                )
+                llm = create_chat_model(name=None, thinking_enabled=False)
+            else:
+                raise
         
         # 调用大模型
         response = await llm.agenerate([[HumanMessage(content=prompt)]])

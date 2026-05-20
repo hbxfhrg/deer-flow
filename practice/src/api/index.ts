@@ -119,7 +119,7 @@ export const api = {
       return response.data;
     },
     
-    async extractSummary(data: { knowledgeBase: string; promptTemplate?: string }): Promise<{ 
+    async extractSummary(data: { knowledgeBase: string; promptTemplate?: string; modelName?: string }): Promise<{ 
       success: boolean; 
       summaryText?: string; 
       categories?: string[];

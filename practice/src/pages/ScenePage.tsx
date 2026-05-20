@@ -2,43 +2,38 @@ import { useState, useEffect } from 'react';
 import { Save, Plus, X, ChevronRight, Sparkles, Check, Settings } from 'lucide-react';
 import api from '../api';
 
-interface Scene {
-  id: string;
-  name: string;
-  description: string;
-  enabled: boolean;
-  rounds: number;
-  difficulty: '简单' | '中等' | '困难';
-  timePerRound?: number; // 每轮时间限制（秒）
-  totalTimeLimit?: number; // 总时长限制（秒）
-  knowledgeBase?: string; // 知识库内容
-  practiceMode?: string; // 练习模式：剧本式/自由式
-  summaryText?: string; // 摘要信息（格式：分类:要点，每行一个）
-  examCategories?: string; // 考核范围（逗号分隔）
-  scoringRules?: string; // 评分规则
-}
+// 使用 types/index.ts 中定义的 Scene 接口，不再本地重复定义
+// 字段与后端 roleplay.py get_scenes() 返回值保持一致：
+// scene_id, scene_name, scene_description, enabled, rounds, difficulty, ...
 
 // 默认提示词
-const defaultPrompt = `请对以下文本进行分析，提取关键信息：
+const defaultPrompt = `你是一位专业的内容分析师，擅长将非结构化文本转化为清晰的结构化笔记。
 
-1. 识别文本中的主要分类（如产品介绍、客户需求、销售策略等）
-2. 提取每个分类下的关键要点
-3. 生成一个简洁的标题
+请阅读以下提供的文本，并根据其内容执行以下操作：
+1.  **识别维度**：分析文本语义，自动归纳出文中的核心主题或分类维度（例如：产品特点、技术参数、市场表现、用户反馈等，具体维度由文本决定）。
+2.  **提取要点**：在每个维度下，提取最关键的事实、数据、观点或结论。
+3.  **精简表述**：去除口语化、废话和修饰性词语，保留核心信息。
 
-请以JSON格式输出，包含以下字段：
-- title: 摘要标题
-- categories: 分类标签数组
-- keyPoints: 关键要点数组
+**输出格式要求：**
+- 采用"维度名称：要点详情"的格式。
+- 每个维度单独一行。
+- 如果同一维度有多个要点，请用逗号隔开。
+- **仅输出结果**，不要包含解释、前言或后记。
 
-文本内容：
+**参考示例（仅供参考格式，不代表实际维度）：**
+核心优势：零样本学习能力突出，推理效率高
+应用场景：金融风控，智能客服，医疗影像分析
+技术局限：长文本处理能力较弱，存在幻觉风险
+
+**待处理文本：**
 {{TEXT}}`;
 
 export function ScenePage() {
   const [scenes, setScenes] = useState<Scene[]>([
     {
-      id: '1',
-      name: '汽车销售基础',
-      description: '适合新手的基础汽车销售场景',
+      scene_id: '1',
+      scene_name: '汽车销售基础',
+      scene_description: '适合新手的基础汽车销售场景',
       enabled: true,
       rounds: 5,
       difficulty: '简单',
@@ -49,18 +44,18 @@ export function ScenePage() {
       scoringRules: '产品知识准确性：30分\n沟通技巧：25分\n需求理解：25分\n销售策略：20分',
     },
     {
-      id: '2',
-      name: '高端车型销售',
-      description: '豪华汽车销售场景，注重高端客户沟通',
+      scene_id: '2',
+      scene_name: '高端车型销售',
+      scene_description: '豪华汽车销售场景，注重高端客户沟通',
       enabled: true,
       rounds: 5,
       difficulty: '中等',
       practiceMode: '剧本式',
     },
     {
-      id: '3',
-      name: '新能源车销售',
-      description: '新能源汽车销售，关注续航和充电问题',
+      scene_id: '3',
+      scene_name: '新能源车销售',
+      scene_description: '新能源汽车销售，关注续航和充电问题',
       enabled: false,
       rounds: 5,
       difficulty: '困难',
@@ -126,6 +121,8 @@ export function ScenePage() {
     summaryText: '',
     examCategories: '',
     scoringRules: '',
+    modelName: undefined as string | undefined,
+    promptTemplate: undefined as string | undefined,
   });
 
   const difficultyOptions = [
@@ -187,6 +184,7 @@ export function ScenePage() {
       const response = await api.scenes.extractSummary({
         knowledgeBase: editingScene.knowledgeBase,
         promptTemplate: summaryPrompt,
+        modelName: editingScene.modelName,
       });
       
       if (response.success && response.summaryText) {
@@ -226,6 +224,8 @@ export function ScenePage() {
         summaryText: editingScene.summaryText?.trim() || undefined,
         examCategories: editingScene.examCategories?.trim() || undefined,
         scoringRules: editingScene.scoringRules?.trim() || undefined,
+        modelName: editingScene.modelName,
+        promptTemplate: editingScene.promptTemplate?.trim() || undefined,
       });
       
       // 重新加载场景列表
@@ -241,21 +241,49 @@ export function ScenePage() {
     }
   };
 
-  // 解析 summaryText 为分类和要点
+  // 将 summaryText 智能拆分为 [{label, content}] 数组
+  // 兼容：正确换行 / 无换行挤在一行 / markdown 代码块 等格式
+  const parseSummaryLines = (text: string): { label: string; content: string }[] => {
+    if (!text || !text.trim()) return [];
+
+    // 去掉可能的 markdown 代码块标记
+    let cleaned = text.trim().replace(/^```[\w]*\n?/, '').replace(/\n?```$/, '').trim();
+
+    // 尝试按换行分割
+    let lines = cleaned.split('\n').filter(l => l.trim());
+
+    // 如果只有1-2行且包含多个冒号，说明大模型没换行，需要智能分割
+    if (lines.length <= 2 && lines.some(l => (l.match(/：/g) || []).length >= 2)) {
+      const longLine = lines.find(l => (l.match(/：/g) || []).length >= 2) || lines[0];
+      // 按 "中文冒号" 分割，但保留英文冒号（如 URL、时间中的冒号）
+      // 用正则匹配模式：非冒号字符+中文冒号 作为维度分隔点
+      const segments = longLine.split(/(?=[^：\n]+：)/).filter(s => s.trim() && s.includes('：'));
+      lines = segments.map(s => s.trim().replace(/；?\s*$/, ''));
+    }
+
+    return lines
+      .map(line => {
+        // 用第一个中文冒号分割（优先），没有则用英文冒号
+        const sepIdx = line.indexOf('：');
+        if (sepIdx > 0) {
+          return { label: line.slice(0, sepIdx).trim(), content: line.slice(sepIdx + 1).trim() };
+        }
+        const colonIdx = line.indexOf(':');
+        if (colonIdx > 0) {
+          return { label: line.slice(0, colonIdx).trim(), content: line.slice(colonIdx + 1).trim() };
+        }
+        return null;
+      })
+      .filter((item): item is { label: string; content: string } => item !== null && item.label);
+  };
+
+  // 解析 summaryText 为分类和要点（兼容旧调用方）
   const parseSummaryText = (text: string) => {
-    const lines = text.split('\n').filter(line => line.trim());
-    const categories: string[] = [];
-    const keyPoints: string[] = [];
-    
-    lines.forEach(line => {
-      const parts = line.split(':');
-      if (parts.length >= 2) {
-        categories.push(parts[0].trim());
-        keyPoints.push(parts.slice(1).join(':').trim());
-      }
-    });
-    
-    return { categories, keyPoints };
+    const items = parseSummaryLines(text);
+    return {
+      categories: items.map(i => i.label),
+      keyPoints: items.map(i => i.content),
+    };
   };
 
   // 调用后端API提取摘要
@@ -268,6 +296,7 @@ export function ScenePage() {
       const response = await api.scenes.extractSummary({
         knowledgeBase: newScene.knowledgeBase,
         promptTemplate: summaryPrompt,
+        modelName: newScene.modelName,
       });
       
       if (response.success && response.summaryText) {
@@ -355,6 +384,8 @@ export function ScenePage() {
         summaryText: newScene.summaryText.trim() || undefined,
         examCategories: newScene.examCategories.trim() || undefined,
         scoringRules: newScene.scoringRules.trim() || undefined,
+        modelName: newScene.modelName,
+        promptTemplate: newScene.promptTemplate?.trim() || undefined,
       });
       
       // 重新加载场景列表
@@ -364,8 +395,8 @@ export function ScenePage() {
       alert('场景保存成功！');
       setShowAddModal(false);
       setNewScene({
-        name: '',
-        description: '',
+        scene_name: '',
+        scene_description: '',
         rounds: 5,
         difficulty: '简单',
         practiceMode: '自由式',
@@ -375,6 +406,8 @@ export function ScenePage() {
         summaryText: '',
         examCategories: '',
         scoringRules: '',
+        modelName: undefined,
+        promptTemplate: undefined,
       });
     } catch (error) {
       console.error('保存场景失败:', error);
@@ -382,10 +415,21 @@ export function ScenePage() {
     }
   };
 
-  const savePromptSettings = () => {
-    setShowSettingsModal(false);
-    // 可以在这里保存到 localStorage 或后端
+  const savePromptSettings = async () => {
+    // 保存到当前正在编辑/新建的场景
+    if (editingScene) {
+      setEditingScene(prev => prev ? { ...prev, promptTemplate: summaryPrompt } : null);
+      try {
+        await api.scenes.update(editingScene.scene_id, { promptTemplate: summaryPrompt });
+      } catch (e) {
+        console.error('保存提示词模板失败', e);
+      }
+    } else if (showAddModal) {
+      // 新建场景时直接更新本地状态
+      setNewScene(prev => ({ ...prev, promptTemplate: summaryPrompt }));
+    }
     localStorage.setItem('summary_prompt', summaryPrompt);
+    setShowSettingsModal(false);
   };
 
   const resetPrompt = () => {
@@ -502,15 +546,12 @@ export function ScenePage() {
                   <div className="mb-4 p-3 bg-blue-50 rounded-xl">
                     <p className="text-xs text-blue-600 font-medium mb-2">📚 知识要点</p>
                     <ul className="text-xs text-gray-600 space-y-1">
-                      {scene.summaryText.split('\n').slice(0, 3).map((line, idx) => {
-                        const parts = line.split(':');
-                        return (
-                          <li key={idx} className="flex items-start gap-1">
-                            <span className="text-blue-500 font-medium">{parts[0].trim()}:</span>
-                            {parts.slice(1).join(':').trim()}
-                          </li>
-                        );
-                      })}
+                      {parseSummaryLines(scene.summaryText).slice(0, 3).map((item, idx) => (
+                        <li key={idx} className="flex items-start gap-1">
+                          <span className="text-blue-500 font-medium whitespace-nowrap">{item.label}：</span>
+                          <span>{item.content}</span>
+                        </li>
+                      ))}
                     </ul>
                   </div>
                 )}
@@ -698,7 +739,12 @@ export function ScenePage() {
                     {isExtracting ? '提取中...' : '提取摘要'}
                   </button>
                   <button
-                    onClick={() => setShowSettingsModal(true)}
+                    onClick={() => {
+                      if (newScene.promptTemplate) {
+                        setSummaryPrompt(newScene.promptTemplate);
+                      }
+                      setShowSettingsModal(true);
+                    }}
                     className="flex items-center justify-center gap-1 px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
                   >
                     <Settings className="w-4 h-4" />
@@ -716,15 +762,12 @@ export function ScenePage() {
                       <div>
                         <p className="text-xs text-gray-500 mb-1">分类与要点</p>
                         <ul className="text-xs text-gray-600 space-y-1">
-                          {newScene.summaryText.split('\n').map((line, idx) => {
-                            const parts = line.split(':');
-                            return (
-                              <li key={idx} className="flex items-start gap-1">
-                                <span className="text-blue-500 font-medium">{parts[0].trim()}:</span>
-                                {parts.slice(1).join(':').trim()}
-                              </li>
-                            );
-                          })}
+                          {parseSummaryLines(newScene.summaryText).map((item, idx) => (
+                            <li key={idx} className="flex items-start gap-1">
+                              <span className="text-blue-500 font-medium whitespace-nowrap">{item.label}：</span>
+                              <span>{item.content}</span>
+                            </li>
+                          ))}
                         </ul>
                       </div>
                     </div>
@@ -960,7 +1003,12 @@ export function ScenePage() {
                     {isExtracting ? '提取中...' : '提取摘要'}
                   </button>
                   <button
-                    onClick={() => setShowSettingsModal(true)}
+                    onClick={() => {
+                      if (editingScene?.promptTemplate) {
+                        setSummaryPrompt(editingScene.promptTemplate);
+                      }
+                      setShowSettingsModal(true);
+                    }}
                     className="flex items-center justify-center gap-1 px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
                   >
                     <Settings className="w-4 h-4" />
@@ -978,15 +1026,12 @@ export function ScenePage() {
                       <div>
                         <p className="text-xs text-gray-500 mb-1">分类与要点</p>
                         <ul className="text-xs text-gray-600 space-y-1">
-                          {editingScene.summaryText.split('\n').map((line, idx) => {
-                            const parts = line.split(':');
-                            return (
-                              <li key={idx} className="flex items-start gap-1">
-                                <span className="text-blue-500 font-medium">{parts[0].trim()}:</span>
-                                {parts.slice(1).join(':').trim()}
-                              </li>
-                            );
-                          })}
+                          {editingScene.summaryText && parseSummaryLines(editingScene.summaryText).map((item, idx) => (
+                            <li key={idx} className="flex items-start gap-1">
+                              <span className="text-blue-500 font-medium whitespace-nowrap">{item.label}：</span>
+                              <span>{item.content}</span>
+                            </li>
+                          ))}
                         </ul>
                       </div>
                     </div>
