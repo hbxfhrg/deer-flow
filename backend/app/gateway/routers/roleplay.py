@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, Dict, AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,31 +10,49 @@ from deerflow.roleplay.auth_service import AuthService
 router = APIRouter(prefix="/api/roleplay", tags=["roleplay"])
 
 class SceneCreate(BaseModel):
-    id: Optional[str] = None
-    name: str
-    description: Optional[str] = ""
-    difficulty: Optional[str] = "medium"
+    scene_id: Optional[int] = None
+    scene_name: str
+    scene_description: Optional[str] = ""
+    difficulty: Optional[str] = "简单"
     rounds: Optional[int] = 5
-    time_per_round: Optional[int] = 120
-    total_time_limit: Optional[int] = 600
+    time_per_round: Optional[int] = Field(default=120, alias="timePerRound")
+    total_time_limit: Optional[int] = Field(default=600, alias="totalTimeLimit")
     model_name: Optional[str] = "gpt-4o-mini"
     system_prompt: Optional[str] = ""
     user_prompt_template: Optional[str] = ""
     enabled: Optional[bool] = True
     metadata_json: Optional[Dict] = {}
+    # 自由对练功能新增字段
+    practice_mode: Optional[str] = Field(default="剧本式", alias="practiceMode")
+    knowledge_base: Optional[str] = Field(default=None, alias="knowledgeBase")
+    summary_text: Optional[str] = Field(default=None, alias="summaryText")
+    exam_categories: Optional[str] = Field(default=None, alias="examCategories")
+    scoring_rules: Optional[str] = Field(default=None, alias="scoringRules")
+
+    class Config:
+        populate_by_name = True
 
 class SceneUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
+    scene_name: Optional[str] = None
+    scene_description: Optional[str] = None
     difficulty: Optional[str] = None
     rounds: Optional[int] = None
-    time_per_round: Optional[int] = None
-    total_time_limit: Optional[int] = None
+    time_per_round: Optional[int] = Field(default=None, alias="timePerRound")
+    total_time_limit: Optional[int] = Field(default=None, alias="totalTimeLimit")
     model_name: Optional[str] = None
     system_prompt: Optional[str] = None
     user_prompt_template: Optional[str] = None
     enabled: Optional[bool] = None
     metadata_json: Optional[Dict] = None
+    # 自由对练功能新增字段
+    practice_mode: Optional[str] = Field(default=None, alias="practiceMode")
+    knowledge_base: Optional[str] = Field(default=None, alias="knowledgeBase")
+    summary_text: Optional[str] = Field(default=None, alias="summaryText")
+    exam_categories: Optional[str] = Field(default=None, alias="examCategories")
+    scoring_rules: Optional[str] = Field(default=None, alias="scoringRules")
+
+    class Config:
+        populate_by_name = True
 
 class EvaluationCreate(BaseModel):
     id: Optional[str] = None
@@ -75,59 +93,164 @@ async def get_scenes():
     scenes = await SceneService.get_scenes()
     return {"scenes": [
         {
-            "id": s.id,
-            "name": s.name,
-            "description": s.description,
+            "scene_id": s.scene_id,
+            "scene_name": s.scene_name,
+            "scene_description": s.scene_description,
+            "scene_cover": s.scene_cover,
+            "asr_correct_lib_id": s.asr_correct_lib_id,
+            "sensitive_word_lib_id": s.sensitive_word_lib_id,
+            "dialog_round_limit": s.dialog_round_limit,
+            "end_speech": s.end_speech,
             "difficulty": s.difficulty,
             "rounds": s.rounds,
-            "time_per_round": s.time_per_round,
-            "total_time_limit": s.total_time_limit,
-            "model_name": s.model_name,
-            "enabled": s.enabled,
-            "created_at": s.created_at.isoformat() if s.created_at else None
+            "timePerRound": s.time_per_round,
+            "totalTimeLimit": s.total_time_limit,
+            "modelName": s.model_name,
+            "systemPrompt": s.system_prompt,
+            "userPromptTemplate": s.user_prompt_template,
+            "enabled": s.status == 1,
+            "createBy": s.create_by,
+            "createdAt": s.create_time.isoformat() if s.create_time else None,
+            "updatedAt": s.update_time.isoformat() if s.update_time else None,
+            # 自由对练功能新增字段（使用驼峰命名）
+            "practiceMode": s.practice_mode,
+            "knowledgeBase": s.knowledge_base,
+            "summaryText": s.summary_text,
+            "examCategories": s.exam_categories,
+            "scoringRules": s.scoring_rules
         } for s in scenes
     ]}
 
 @router.get("/scenes/{scene_id}", summary="获取场景详情")
-async def get_scene(scene_id: str):
+async def get_scene(scene_id: int):
     scene = await SceneService.get_scene(scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")
     return {
-        "id": scene.id,
-        "name": scene.name,
-        "description": scene.description,
+        "scene_id": scene.scene_id,
+        "scene_name": scene.scene_name,
+        "scene_description": scene.scene_description,
+        "scene_cover": scene.scene_cover,
+        "asr_correct_lib_id": scene.asr_correct_lib_id,
+        "sensitive_word_lib_id": scene.sensitive_word_lib_id,
+        "dialog_round_limit": scene.dialog_round_limit,
+        "end_speech": scene.end_speech,
         "difficulty": scene.difficulty,
         "rounds": scene.rounds,
-        "time_per_round": scene.time_per_round,
-        "total_time_limit": scene.total_time_limit,
-        "model_name": scene.model_name,
-        "system_prompt": scene.system_prompt,
-        "user_prompt_template": scene.user_prompt_template,
-        "enabled": scene.enabled,
-        "metadata_json": scene.metadata_json,
-        "created_at": scene.created_at.isoformat() if scene.created_at else None,
-        "updated_at": scene.updated_at.isoformat() if scene.updated_at else None
+        "timePerRound": scene.time_per_round,
+        "totalTimeLimit": scene.total_time_limit,
+        "modelName": scene.model_name,
+        "systemPrompt": scene.system_prompt,
+        "userPromptTemplate": scene.user_prompt_template,
+        "enabled": scene.status == 1,
+        "createBy": scene.create_by,
+        "metadataJson": scene.metadata_json,
+        "createdAt": scene.create_time.isoformat() if scene.create_time else None,
+        "updatedAt": scene.update_time.isoformat() if scene.update_time else None,
+        # 自由对练功能新增字段（使用驼峰命名）
+        "practiceMode": scene.practice_mode,
+        "knowledgeBase": scene.knowledge_base,
+        "summaryText": scene.summary_text,
+        "examCategories": scene.exam_categories,
+        "scoringRules": scene.scoring_rules
     }
 
 @router.post("/scenes", summary="创建场景")
 async def create_scene(scene: SceneCreate):
+    # Pydantic已通过alias将驼峰命名转换为下划线命名，直接传递即可
     result = await SceneService.create_scene(scene.dict())
-    return {"message": "Scene created successfully", "scene_id": result.id}
+    return {"message": "Scene created successfully", "scene_id": result.scene_id}
 
 @router.put("/scenes/{scene_id}", summary="更新场景")
-async def update_scene(scene_id: str, scene: SceneUpdate):
+async def update_scene(scene_id: int, scene: SceneUpdate):
+    # Pydantic已通过alias将驼峰命名转换为下划线命名，直接传递即可
     result = await SceneService.update_scene(scene_id, scene.dict(exclude_none=True))
     if not result:
         raise HTTPException(status_code=404, detail="Scene not found")
     return {"message": "Scene updated successfully"}
 
 @router.delete("/scenes/{scene_id}", summary="删除场景")
-async def delete_scene(scene_id: str):
+async def delete_scene(scene_id: int):
     result = await SceneService.delete_scene(scene_id)
     if not result:
         raise HTTPException(status_code=404, detail="Scene not found")
     return {"message": "Scene deleted successfully"}
+
+# 提取摘要请求模型
+class ExtractSummaryRequest(BaseModel):
+    knowledgeBase: str = Field(description="知识库文本内容")
+    promptTemplate: Optional[str] = Field(default=None, description="自定义提示词模板")
+
+@router.post("/scenes/extract-summary", summary="提取摘要")
+async def extract_summary(request: ExtractSummaryRequest):
+    """使用大模型从知识库文本中提取摘要（直调大模型，不经过工作流）"""
+    from deerflow.models import create_chat_model
+    from langchain_core.messages import HumanMessage
+    
+    if not request.knowledgeBase or not request.knowledgeBase.strip():
+        raise HTTPException(status_code=400, detail="知识库内容不能为空")
+    
+    # 使用默认模板或自定义模板
+    default_template = """请对以下文本进行分析，提取关键信息：
+
+1. 识别文本中的主要分类（如产品介绍、客户需求、销售策略等）
+2. 提取每个分类下的关键要点
+3. 按照指定格式输出
+
+输出格式要求：
+- 每行一个分类:要点
+- 分类和要点之间用英文冒号:分隔
+- 分类尽量简洁（2-4个汉字）
+- 要点描述清晰准确
+
+文本内容：
+{{TEXT}}"""
+    
+    prompt = request.promptTemplate.replace("{{TEXT}}", request.knowledgeBase) if request.promptTemplate else default_template.replace("{{TEXT}}", request.knowledgeBase)
+    
+    try:
+        # 直接创建大模型实例，不经过工作流
+        llm = create_chat_model(
+            name="gpt-4o-mini",
+            thinking_enabled=False
+        )
+        
+        # 调用大模型
+        response = await llm.agenerate([[HumanMessage(content=prompt)]])
+        
+        # 解析响应
+        if response and response.generations and response.generations[0]:
+            summary_text = response.generations[0][0].text.strip()
+            
+            # 清理可能的markdown格式
+            if summary_text.startswith("```"):
+                summary_text = summary_text[3:]
+                if summary_text.endswith("```"):
+                    summary_text = summary_text[:-3]
+            summary_text = summary_text.strip()
+            
+            return {
+                "success": True,
+                "summaryText": summary_text,
+                "categories": parse_summary_categories(summary_text)
+            }
+        else:
+            return {"success": False, "message": "大模型返回为空"}
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"调用大模型失败: {str(e)}")
+
+def parse_summary_categories(summary_text: str) -> list:
+    """解析摘要文本，提取分类列表"""
+    categories = []
+    lines = summary_text.split('\n')
+    for line in lines:
+        line = line.strip()
+        if line and ':' in line:
+            parts = line.split(':', 1)
+            if len(parts) == 2:
+                categories.append(parts[0].strip())
+    return categories
 
 @router.get("/evaluations", summary="获取评估列表")
 async def get_evaluations(thread_id: Optional[str] = None, user_id: Optional[str] = None):

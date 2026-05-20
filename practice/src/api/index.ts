@@ -1,5 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
-import type { Thread, Run, EvaluationResult, Message, UserInfo, LoginResponse } from '@/types';
+import type { Thread, Run, EvaluationResult, Message, UserInfo, LoginResponse, Scene } from '@/types';
 
 const API_BASE_URL = '/api';
 
@@ -88,28 +88,44 @@ export const api = {
 
   // 场景接口
   scenes: {
-    async list(): Promise<any[]> {
+    async list(): Promise<Scene[]> {
       const response = await axiosInstance.get('/roleplay/scenes');
       return response.data.scenes;
     },
     
-    async get(sceneId: string): Promise<any> {
+    async get(sceneId: string): Promise<Scene> {
       const response = await axiosInstance.get(`/roleplay/scenes/${sceneId}`);
       return response.data;
     },
     
-    async create(data: any): Promise<any> {
-      const response = await axiosInstance.post('/roleplay/scenes', data);
+    async create(data: Partial<Scene>): Promise<{ message: string; scene_id: string }> {
+      // 将 id 映射为 scene_id 以匹配数据库字段名
+      const payload = { ...data };
+      if (payload.id && !payload.scene_id) {
+        payload.scene_id = payload.id;
+        delete payload.id;
+      }
+      const response = await axiosInstance.post('/roleplay/scenes', payload);
       return response.data;
     },
     
-    async update(sceneId: string, data: any): Promise<any> {
+    async update(sceneId: string, data: Partial<Scene>): Promise<{ message: string }> {
       const response = await axiosInstance.put(`/roleplay/scenes/${sceneId}`, data);
       return response.data;
     },
     
-    async delete(sceneId: string): Promise<any> {
+    async delete(sceneId: string): Promise<{ message: string }> {
       const response = await axiosInstance.delete(`/roleplay/scenes/${sceneId}`);
+      return response.data;
+    },
+    
+    async extractSummary(data: { knowledgeBase: string; promptTemplate?: string }): Promise<{ 
+      success: boolean; 
+      summaryText?: string; 
+      categories?: string[];
+      message?: string;
+    }> {
+      const response = await axiosInstance.post('/roleplay/scenes/extract-summary', data);
       return response.data;
     },
   },

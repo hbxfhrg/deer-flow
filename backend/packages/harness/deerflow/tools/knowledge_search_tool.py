@@ -1,127 +1,219 @@
-"""知识库搜索工具 - DeerFlow Tool"""
+"""Knowledge base search tool for roleplay scenarios.
 
-import json
+Dynamically loads knowledge from markdown and text files in the knowledge_base directory.
+"""
+
+from __future__ import annotations
+
 import os
-import re
-import fnmatch
+from typing import Any, List, Dict
 
 from langchain.tools import tool
 
+from deerflow.tools.types import Runtime
 
-class KnowledgeSearch:
-    """知识库搜索类"""
 
-    def __init__(self, knowledge_base_path=None):
-        self.knowledge_base_path = knowledge_base_path or self._get_default_knowledge_base()
-        os.makedirs(self.knowledge_base_path, exist_ok=True)
+# 知识库目录路径
+# 从 deerflow/tools/knowledge_search_tool.py 向上4级到 backend 目录
+KNOWLEDGE_BASE_DIR = os.path.join(
+    os.path.dirname(__file__), 
+    "..", "..", "..", "..", "skills", "public", "knowledge_search", "knowledge_base"
+)
 
-    def _get_default_knowledge_base(self):
-        # 指向 skills/public/knowledge_search/knowledge_base/
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
-        return os.path.join(base_dir, 'skills', 'public', 'knowledge_search', 'knowledge_base')
+# 缓存加载的知识库内容
+_knowledge_cache = None
 
-    def _load_document(self, file_path):
-        try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                return f.read()
-        except Exception:
-            return None
 
-    def _extract_title(self, content, filename):
-        lines = content.split('\n')[:10]
-        for line in lines:
-            if line.startswith('# '):
-                return line[2:].strip()
-        if filename.endswith('.json'):
+def _load_knowledge_base() -> List[Dict[str, Any]]:
+    """Load knowledge base from files in the knowledge_base directory."""
+    global _knowledge_cache
+    if _knowledge_cache is not None:
+        return _knowledge_cache
+    
+    knowledge_base = []
+    
+    if not os.path.exists(KNOWLEDGE_BASE_DIR):
+        # 如果目录不存在，返回空列表，并创建目录
+        os.makedirs(KNOWLEDGE_BASE_DIR, exist_ok=True)
+        _knowledge_cache = knowledge_base
+        return knowledge_base
+    
+    # 遍历目录中的所有文件
+    for filename in os.listdir(KNOWLEDGE_BASE_DIR):
+        filepath = os.path.join(KNOWLEDGE_BASE_DIR, filename)
+        
+        if os.path.isfile(filepath):
+            file_ext = filename.lower().split('.')[-1]
+            
             try:
-                data = json.loads(content)
-                return data.get('title', data.get('name', ''))
-            except:
-                pass
-        return os.path.splitext(os.path.basename(filename))[0]
-
-    def _search_in_file(self, file_path, keywords, case_sensitive=False):
-        content = self._load_document(file_path)
-        if not content:
-            return None
-
-        filename = os.path.basename(file_path)
-        score = 0
-        matches = []
-        flags = 0 if case_sensitive else re.IGNORECASE
-
-        for keyword in keywords:
-            count = len(re.findall(re.escape(keyword), content, flags))
-            score += count * 10
-            pattern = re.compile(rf'(.{{0,50}}){re.escape(keyword)}(.{{0,50}})', flags)
-            for match in pattern.finditer(content):
-                context = f"{match.group(1)}{keyword}{match.group(2)}"
-                matches.append(context.replace('\n', ' ').strip())
-
-        if score == 0:
-            return None
-
-        return {
-            'title': self._extract_title(content, filename),
-            'filename': filename,
-            'content': content[:500] + '...' if len(content) > 500 else content,
-            'matches': matches[:5],
-            'score': score,
-            'source': f"knowledge_base/{filename}"
-        }
-
-    def search(self, query, max_results=10, case_sensitive=False):
-        keywords = [k.strip() for k in query.split() if k.strip()]
-        if not keywords:
-            return json.dumps({
-                "query": query,
-                "total_results": 0,
-                "results": [],
-                "message": "请提供搜索关键词"
-            }, ensure_ascii=False)
-
-        results = []
-        for root, _, files in os.walk(self.knowledge_base_path):
-            for filename in files:
-                if not fnmatch.fnmatch(filename, '*.txt') and \
-                   not fnmatch.fnmatch(filename, '*.md') and \
-                   not fnmatch.fnmatch(filename, '*.json'):
-                    continue
-                file_path = os.path.join(root, filename)
-                result = self._search_in_file(file_path, keywords, case_sensitive)
-                if result:
-                    results.append(result)
-
-        results.sort(key=lambda x: x['score'], reverse=True)
-        results = results[:max_results]
-
-        return json.dumps({
-            "query": query,
-            "total_results": len(results),
-            "results": results,
-            "message": f"找到 {len(results)} 条匹配结果"
-        }, ensure_ascii=False, indent=2)
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                # 根据文件类型解析内容
+                if file_ext == 'md':
+                    doc = _parse_markdown(filename, content)
+                elif file_ext == 'txt':
+                    doc = _parse_text(filename, content)
+                else:
+                    doc = {
+                        "id": filename,
+                        "title": filename,
+                        "category": "other",
+                        "content": content,
+                        "raw_content": content
+                    }
+                
+                knowledge_base.append(doc)
+            except Exception as e:
+                print(f"Error loading {filename}: {e}")
+    
+    _knowledge_cache = knowledge_base
+    return knowledge_base
 
 
-# 全局单例
-_searcher = None
+def _parse_markdown(filename: str, content: str) -> Dict[str, Any]:
+    """Parse markdown file content into structured knowledge."""
+    lines = content.split('\n')
+    title = filename.replace('.md', '')
+    category = 'general'
+    sections = {}
+    current_section = None
+    current_section_content = []
+    
+    for line in lines:
+        # 提取标题
+        if line.startswith('# '):
+            title = line[2:].strip()
+        elif line.startswith('## '):
+            if current_section:
+                sections[current_section] = '\n'.join(current_section_content).strip()
+            current_section = line[3:].strip()
+            current_section_content = []
+        elif current_section:
+            current_section_content.append(line)
+    
+    if current_section:
+        sections[current_section] = '\n'.join(current_section_content).strip()
+    
+    return {
+        "id": filename,
+        "title": title,
+        "category": category,
+        "sections": sections,
+        "content": content,
+        "raw_content": content
+    }
 
-def _get_searcher():
-    global _searcher
-    if _searcher is None:
-        _searcher = KnowledgeSearch()
-    return _searcher
+
+def _parse_text(filename: str, content: str) -> Dict[str, Any]:
+    """Parse text file content into structured knowledge."""
+    title = filename.replace('.txt', '')
+    lines = content.split('\n')
+    
+    return {
+        "id": filename,
+        "title": title,
+        "category": 'sales',
+        "content": content,
+        "raw_content": content,
+        "lines": [line.strip() for line in lines if line.strip()]
+    }
 
 
-@tool("knowledge_search", parse_docstring=True)
-def knowledge_search(query: str, max_results: int = 10) -> str:
-    """在企业内部知识库中搜索相关信息。
+def _search_knowledge(query: str) -> List[Dict[str, Any]]:
+    """Search knowledge base for relevant content."""
+    knowledge_base = _load_knowledge_base()
+    results = []
+    
+    query_lower = query.lower()
+    
+    for doc in knowledge_base:
+        # 检查标题是否匹配
+        if query_lower in doc['title'].lower():
+            doc['match_score'] = 1.0
+            results.append(doc)
+            continue
+        
+        # 检查内容是否匹配
+        content_lower = doc['content'].lower()
+        if query_lower in content_lower:
+            # 计算匹配分数
+            score = content_lower.count(query_lower) * 0.1
+            if query_lower in doc['title'].lower():
+                score += 0.5
+            doc['match_score'] = min(score, 1.0)
+            results.append(doc)
+    
+    # 按匹配分数排序
+    results.sort(key=lambda x: x.get('match_score', 0), reverse=True)
+    return results
 
-    当用户询问产品知识、公司政策、技术文档等内容时使用此工具。
-    返回与查询关键词最相关的文档摘要和来源。
 
-    Args:
-        query: 搜索关键词，可以是多个词（用空格分隔）
-        max_results: 最大返回结果数量，默认10条
+@tool("knowledge_search", return_direct=False)
+def knowledge_search_tool(query: str) -> str:
     """
-    return _get_searcher().search(query, max_results=max_results)
+    Search the knowledge base for relevant information.
+    
+    Args:
+        query: The search query string. Can be a product name, scenario name, or question.
+    
+    Returns:
+        A formatted string containing the search results with relevant knowledge.
+    """
+    results = _search_knowledge(query)
+    
+    if not results:
+        return f"未找到与 '{query}' 相关的知识库内容。"
+    
+    response_parts = [f"找到 {len(results)} 条与 '{query}' 相关的知识："]
+    
+    for i, result in enumerate(results, 1):
+        response_parts.append(f"\n--- [{i}] {result['title']} ---")
+        
+        if 'sections' in result:
+            for section_name, section_content in result['sections'].items():
+                response_parts.append(f"\n**{section_name}**")
+                response_parts.append(section_content[:500] + '...' if len(section_content) > 500 else section_content)
+        elif 'lines' in result:
+            for line in result['lines'][:10]:
+                response_parts.append(f"- {line}")
+        else:
+            content_preview = result['content'][:500] + '...' if len(result['content']) > 500 else result['content']
+            response_parts.append(content_preview)
+    
+    return '\n'.join(response_parts)
+
+
+@tool("list_knowledge_topics", return_direct=False)
+def list_knowledge_topics() -> str:
+    """
+    List all available topics in the knowledge base.
+    
+    Returns:
+        A formatted string listing all available knowledge topics.
+    """
+    knowledge_base = _load_knowledge_base()
+    
+    if not knowledge_base:
+        return "知识库为空，请在 knowledge_base 目录添加 .md 或 .txt 文件。"
+    
+    response_parts = ["知识库中包含以下主题："]
+    
+    for doc in knowledge_base:
+        category = doc.get('category', '未分类')
+        response_parts.append(f"- **{doc['title']}** (分类: {category})")
+    
+    return '\n'.join(response_parts)
+
+
+@tool("clear_knowledge_cache", return_direct=False)
+def clear_knowledge_cache() -> str:
+    """
+    Clear the knowledge base cache to reload files.
+    
+    Returns:
+        Confirmation message.
+    """
+    global _knowledge_cache
+    _knowledge_cache = None
+    return "知识库缓存已清除，下次搜索将重新加载文件。"

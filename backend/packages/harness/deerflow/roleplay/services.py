@@ -2,45 +2,73 @@ from datetime import datetime, UTC
 from uuid import uuid4
 from sqlalchemy import select, desc, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
+import re
 
 from deerflow.roleplay import get_db, get_session_factory
 from deerflow.roleplay.models import SceneRow, EvaluationRow, PracticeRecordRow
+
+# 驼峰命名转下划线命名（通用函数）
+def camel_to_snake(name: str) -> str:
+    """
+    将驼峰命名转换为下划线命名
+    例如: practiceMode -> practice_mode, timePerRound -> time_per_round
+    """
+    s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+    return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
 
 class SceneService:
     @staticmethod
     async def get_scenes():
         async with get_db() as session:
             result = await session.execute(
-                select(SceneRow).where(SceneRow.enabled == True).order_by(SceneRow.name)
+                select(SceneRow).where(SceneRow.status == 1).order_by(SceneRow.scene_name)
             )
             return result.scalars().all()
 
     @staticmethod
-    async def get_scene(scene_id: str):
+    async def get_scene(scene_id: int):
         async with get_db() as session:
             result = await session.execute(
-                select(SceneRow).where(SceneRow.id == scene_id)
+                select(SceneRow).where(SceneRow.scene_id == scene_id)
             )
             return result.scalar_one_or_none()
 
     @staticmethod
     async def create_scene(data: dict):
         async with get_db() as session:
+            # 将驼峰命名转换为下划线命名
+            snake_case_data = {camel_to_snake(k): v for k, v in data.items()}
+            
             scene = SceneRow(
-                id=data.get("id") or str(uuid4()),
-                name=data["name"],
-                description=data.get("description", ""),
-                difficulty=data.get("difficulty", "medium"),
-                rounds=data.get("rounds", 5),
-                time_per_round=data.get("time_per_round", 120),
-                total_time_limit=data.get("total_time_limit", 600),
-                model_name=data.get("model_name", "gpt-4o-mini"),
-                system_prompt=data.get("system_prompt", ""),
-                user_prompt_template=data.get("user_prompt_template", ""),
-                enabled=data.get("enabled", True),
-                metadata_json=data.get("metadata_json", {}),
-                created_at=datetime.now(UTC),
-                updated_at=datetime.now(UTC)
+                # 数据库已有的字段（特殊处理 name -> scene_name, description -> scene_description）
+                scene_name=data.get("name") or snake_case_data.get("scene_name"),
+                scene_description=data.get("description") or snake_case_data.get("scene_description", ""),
+                scene_cover=snake_case_data.get("scene_cover"),
+                asr_correct_lib_id=snake_case_data.get("asr_correct_lib_id"),
+                sensitive_word_lib_id=snake_case_data.get("sensitive_word_lib_id"),
+                dialog_round_limit=snake_case_data.get("dialog_round_limit"),
+                end_speech=snake_case_data.get("end_speech"),
+                status=snake_case_data.get("enabled", True) if isinstance(snake_case_data.get("enabled", True), int) else (1 if snake_case_data.get("enabled", True) else 0),
+                create_by=snake_case_data.get("create_by"),
+                create_time=datetime.now(UTC),
+                update_time=datetime.now(UTC),
+                
+                # 模型新增的字段
+                difficulty=snake_case_data.get("difficulty", "简单"),
+                rounds=snake_case_data.get("rounds", 5),
+                time_per_round=snake_case_data.get("time_per_round", 120),
+                total_time_limit=snake_case_data.get("total_time_limit", 600),
+                model_name=snake_case_data.get("model_name", "gpt-4o-mini"),
+                system_prompt=snake_case_data.get("system_prompt", ""),
+                user_prompt_template=snake_case_data.get("user_prompt_template", ""),
+                metadata_json=snake_case_data.get("metadata_json", {}),
+                
+                # 自由对练功能新增字段
+                practice_mode=snake_case_data.get("practice_mode", "剧本式"),
+                knowledge_base=snake_case_data.get("knowledge_base"),
+                summary_text=snake_case_data.get("summary_text"),
+                exam_categories=snake_case_data.get("exam_categories"),
+                scoring_rules=snake_case_data.get("scoring_rules")
             )
             session.add(scene)
             await session.commit()
@@ -48,31 +76,43 @@ class SceneService:
             return scene
 
     @staticmethod
-    async def update_scene(scene_id: str, data: dict):
+    async def update_scene(scene_id: int, data: dict):
         async with get_db() as session:
             result = await session.execute(
-                select(SceneRow).where(SceneRow.id == scene_id)
+                select(SceneRow).where(SceneRow.scene_id == scene_id)
             )
             scene = result.scalar_one_or_none()
             if scene:
                 for key, value in data.items():
-                    if hasattr(scene, key) and value is not None:
+                    if value is None:
+                        continue
+                    
+                    # 将驼峰命名转换为下划线命名
+                    db_key = camel_to_snake(key)
+                    
+                    # 特殊处理: enabled -> status
+                    if key == "enabled":
+                        setattr(scene, "status", 1 if value else 0)
+                    elif hasattr(scene, db_key):
+                        setattr(scene, db_key, value)
+                    elif hasattr(scene, key):
                         setattr(scene, key, value)
-                scene.updated_at = datetime.now(UTC)
+                
+                scene.update_time = datetime.now(UTC)
                 await session.commit()
                 await session.refresh(scene)
             return scene
 
     @staticmethod
-    async def delete_scene(scene_id: str):
+    async def delete_scene(scene_id: int):
         async with get_db() as session:
             result = await session.execute(
-                select(SceneRow).where(SceneRow.id == scene_id)
+                select(SceneRow).where(SceneRow.scene_id == scene_id)
             )
             scene = result.scalar_one_or_none()
             if scene:
-                scene.enabled = False
-                scene.updated_at = datetime.now(UTC)
+                scene.status = 0
+                scene.update_time = datetime.now(UTC)
                 await session.commit()
                 return True
             return False

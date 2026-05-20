@@ -45,6 +45,23 @@ export interface StreamEvent {
   };
 }
 
+// 场景设置类型（与数据库字段对齐）
+export interface Scene {
+  scene_id: string;
+  scene_name: string;
+  scene_description: string;
+  enabled: boolean;
+  rounds: number;
+  difficulty: '简单' | '中等' | '困难';
+  practiceMode?: string; // 练习模式：剧本式/自由式
+  timePerRound?: number; // 每轮时间限制（秒）
+  totalTimeLimit?: number; // 总时长限制（秒）
+  knowledgeBase?: string; // 知识库内容
+  summaryText?: string; // 摘要信息（格式：分类:要点，每行一个）
+  examCategories?: string; // 考核范围（逗号分隔）
+  scoringRules?: string; // 评分规则
+}
+
 // 认证相关类型
 export interface UserInfo {
   user_id: number;

@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.gateway.auth_middleware import AuthMiddleware
 from app.gateway.config import get_gateway_config
 from app.gateway.csrf_middleware import CSRFMiddleware
+from app.gateway.logging_middleware import RequestResponseLoggingMiddleware
 from app.gateway.deps import langgraph_runtime
 from app.gateway.routers import (
     agents,
@@ -331,6 +332,9 @@ This gateway provides custom endpoints for models, MCP configuration, skills, an
     )
 
     # CORS is handled by nginx - no need for FastAPI middleware
+
+    # Add request/response logging middleware
+    app.add_middleware(RequestResponseLoggingMiddleware)
 
     # Add auth middleware - must be added AFTER routers are included
     # so that it wraps all routes (middleware executes in reverse order)
