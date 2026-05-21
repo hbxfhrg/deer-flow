@@ -51,17 +51,36 @@ export interface Scene {
   scene_name: string;
   scene_description: string;
   enabled: boolean;
-  rounds: number;
-  difficulty: '简单' | '中等' | '困难';
   practiceMode?: string; // 练习模式：剧本式/自由式
-  timePerRound?: number; // 每轮时间限制（秒）
-  totalTimeLimit?: number; // 总时长限制（秒）
   knowledgeBase?: string; // 知识库内容
   summaryText?: string; // 摘要信息（格式：分类:要点，每行一个）
   examCategories?: string; // 考核范围（逗号分隔）
   scoringRules?: string; // 评分规则
   modelName?: string; // 大模型名称
   promptTemplate?: string; // 摘要提取自定义提示词模板
+  createBy?: string; // 创建者用户ID
+}
+
+// 练习课程类型（与 pract_course 表对齐）
+export interface Course {
+  courseId: number;
+  course_name: string;
+  courseType: number; // 1: 练习，2: 考试
+  sceneId?: number | null;
+  sceneName?: string | null; // 关联的场景名称（后端返回）
+  sceneDescription?: string | null; // 关联的场景描述（后端返回）
+  simulatedRoleId?: number | null; // 关联的模拟角色 ID
+  practiceMode: string; // text: 文本，voice: 语音，call: 模拟电话
+  difficulty?: number | null;
+  totalScore?: number;
+  passingScore?: number;
+  timeLimit?: number | null; // 单次练习时长限制（分钟）
+  maxAttempts?: number;
+  startTime?: string | null;
+  endTime?: string | null;
+  status: number; // 0: 未发布，1: 已发布，2: 已结束
+  create_by?: string;
+  createdAt?: string;
 }
 
 // 认证相关类型

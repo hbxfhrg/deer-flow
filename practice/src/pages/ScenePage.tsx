@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Save, Plus, X, ChevronRight, Sparkles, Check, Settings } from 'lucide-react';
+import { Save, Plus, X, ChevronRight, Sparkles, Check, Settings, Pencil } from 'lucide-react';
 import api from '../api';
 
 // 使用 types/index.ts 中定义的 Scene 接口，不再本地重复定义
@@ -29,39 +29,7 @@ const defaultPrompt = `你是一位专业的内容分析师，擅长将非结构
 {{TEXT}}`;
 
 export function ScenePage() {
-  const [scenes, setScenes] = useState<Scene[]>([
-    {
-      scene_id: '1',
-      scene_name: '汽车销售基础',
-      scene_description: '适合新手的基础汽车销售场景',
-      enabled: true,
-      rounds: 5,
-      difficulty: '简单',
-      practiceMode: '自由式',
-      knowledgeBase: '汽车销售基础知识包括产品知识、客户需求分析、销售技巧等方面。产品知识涵盖车型特点、配置参数、竞品对比等。客户需求分析需要了解客户的预算、用途、偏好等。销售技巧包括沟通技巧、谈判技巧、跟进技巧等。',
-      summaryText: '产品知识:了解客户需求是销售的第一步\n客户需求分析:产品优势需要与客户痛点相结合\n销售技巧:建立信任关系至关重要',
-      examCategories: '产品知识,客户需求分析,销售技巧',
-      scoringRules: '产品知识准确性：30分\n沟通技巧：25分\n需求理解：25分\n销售策略：20分',
-    },
-    {
-      scene_id: '2',
-      scene_name: '高端车型销售',
-      scene_description: '豪华汽车销售场景，注重高端客户沟通',
-      enabled: true,
-      rounds: 5,
-      difficulty: '中等',
-      practiceMode: '剧本式',
-    },
-    {
-      scene_id: '3',
-      scene_name: '新能源车销售',
-      scene_description: '新能源汽车销售，关注续航和充电问题',
-      enabled: false,
-      rounds: 5,
-      difficulty: '困难',
-      practiceMode: '自由式',
-    },
-  ]);
+  const [scenes, setScenes] = useState<Scene[]>([]);
 
   // 页面加载时从后端获取场景列表
   useEffect(() => {
@@ -83,6 +51,10 @@ export function ScenePage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  // 长文本编辑弹窗状态
+  const [showTextEditorModal, setShowTextEditorModal] = useState<'summary' | 'scoring' | null>(null);
+  const [textEditorValue, setTextEditorValue] = useState('');
+  const [textEditorTarget, setTextEditorTarget] = useState<'add' | 'edit'>('add');
   const [isExtracting, setIsExtracting] = useState(false);
   const [summaryPrompt, setSummaryPrompt] = useState(defaultPrompt);
   const [editingScene, setEditingScene] = useState<Scene | null>(null);
@@ -112,11 +84,7 @@ export function ScenePage() {
   const [newScene, setNewScene] = useState({
     scene_name: '',
     scene_description: '',
-    rounds: 5,
-    difficulty: '简单' as '简单' | '中等' | '困难',
     practiceMode: '自由式',
-    timePerRound: 120, // 默认每轮2分钟
-    totalTimeLimit: 600, // 默认总时长10分钟
     knowledgeBase: '', // 新增时清空，用户自行输入
     summaryText: '',
     examCategories: '',
@@ -124,12 +92,6 @@ export function ScenePage() {
     modelName: undefined as string | undefined,
     promptTemplate: undefined as string | undefined,
   });
-
-  const difficultyOptions = [
-    { value: '简单', label: '简单', color: 'bg-green-100 text-green-600' },
-    { value: '中等', label: '中等', color: 'bg-yellow-100 text-yellow-600' },
-    { value: '困难', label: '困难', color: 'bg-red-100 text-red-600' },
-  ];
 
   const practiceModeOptions = [
     { value: '剧本式', label: '剧本式' },
@@ -222,11 +184,7 @@ export function ScenePage() {
       await api.scenes.update(editingScene.scene_id, {
         scene_name: editingScene.scene_name,
         scene_description: editingScene.scene_description,
-        rounds: editingScene.rounds,
-        difficulty: editingScene.difficulty,
         practiceMode: editingScene.practiceMode,
-        timePerRound: editingScene.timePerRound,
-        totalTimeLimit: editingScene.totalTimeLimit,
         knowledgeBase: editingScene.knowledgeBase,
         summaryText: editingScene.summaryText?.trim() || undefined,
         examCategories: editingScene.examCategories?.trim() || undefined,
@@ -385,21 +343,19 @@ export function ScenePage() {
     }
     
     try {
+      const currentUser = api.auth.getCurrentUser();
       const response = await api.scenes.create({
         scene_name: newScene.scene_name,
         scene_description: newScene.scene_description,
         enabled: true,
-        rounds: newScene.rounds,
-        difficulty: newScene.difficulty,
         practiceMode: newScene.practiceMode,
-        timePerRound: newScene.timePerRound,
-        totalTimeLimit: newScene.totalTimeLimit,
         knowledgeBase: newScene.knowledgeBase,
         summaryText: newScene.summaryText.trim() || undefined,
         examCategories: newScene.examCategories.trim() || undefined,
         scoringRules: newScene.scoringRules.trim() || undefined,
         modelName: newScene.modelName,
         promptTemplate: newScene.promptTemplate?.trim() || undefined,
+        createBy: currentUser ? String(currentUser.user_id) : undefined,
       });
       
       // 重新加载场景列表
@@ -411,11 +367,7 @@ export function ScenePage() {
       setNewScene({
         scene_name: '',
         scene_description: '',
-        rounds: 5,
-        difficulty: '简单',
         practiceMode: '自由式',
-        timePerRound: 120,
-        totalTimeLimit: 600,
         knowledgeBase: '', // 新增时清空
         summaryText: '',
         examCategories: '',
@@ -469,7 +421,16 @@ export function ScenePage() {
 
       {/* 场景列表 */}
       <div className="space-y-3">
-        {scenes.map((scene) => (
+        {scenes.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+            <svg className="w-16 h-16 mb-4 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <p className="text-sm">暂无场景数据</p>
+            <p className="text-xs mt-1">点击上方"添加场景"创建第一个场景</p>
+          </div>
+        ) : (
+          scenes.map((scene) => (
           <div
             key={scene.scene_id}
             onClick={() => setSelectedScene(selectedScene === scene.scene_id ? null : scene.scene_id)}
@@ -484,11 +445,6 @@ export function ScenePage() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <span className={`text-xs px-2 py-1 rounded-full ${
-                  difficultyOptions.find(d => d.value === scene.difficulty)?.color
-                }`}>
-                  {difficultyOptions.find(d => d.value === scene.difficulty)?.label}
-                </span>
                 <ChevronRight className={`w-5 h-5 text-gray-400 transition-transform ${selectedScene === scene.scene_id ? 'rotate-90' : ''}`} />
               </div>
             </div>
@@ -496,19 +452,6 @@ export function ScenePage() {
             {/* 展开详情 */}
             {selectedScene === scene.scene_id && (
               <div className="mt-4 pt-4 border-t border-gray-100">
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <p className="text-xs text-gray-400 mb-1">练习轮数</p>
-                    <p className="font-semibold text-gray-800">{scene.rounds} 轮</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-400 mb-1">难度等级</p>
-                    <p className="font-semibold text-gray-800">
-                      {difficultyOptions.find(d => d.value === scene.difficulty)?.label}
-                    </p>
-                  </div>
-                </div>
-                
                 {/* 显示练习模式 */}
                 {scene.practiceMode && (
                   <div className="mb-4">
@@ -520,24 +463,6 @@ export function ScenePage() {
                     }`}>
                       {scene.practiceMode}
                     </span>
-                  </div>
-                )}
-                
-                {/* 显示时间设置 */}
-                {(scene.timePerRound || scene.totalTimeLimit) && (
-                  <div className="grid grid-cols-2 gap-4 mb-4">
-                    {scene.timePerRound && (
-                      <div>
-                        <p className="text-xs text-gray-400 mb-1">⏱️ 每轮时间</p>
-                        <p className="font-semibold text-gray-800">{scene.timePerRound} 秒</p>
-                      </div>
-                    )}
-                    {scene.totalTimeLimit && (
-                      <div>
-                        <p className="text-xs text-gray-400 mb-1">⏰ 总时长</p>
-                        <p className="font-semibold text-gray-800">{scene.totalTimeLimit} 秒</p>
-                      </div>
-                    )}
                   </div>
                 )}
                 
@@ -606,7 +531,8 @@ export function ScenePage() {
               </div>
             )}
           </div>
-        ))}
+          ))
+        )}
       </div>
 
       {/* 添加场景弹窗 */}
@@ -646,40 +572,6 @@ export function ScenePage() {
                 />
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">练习轮数</label>
-                  <select
-                    value={newScene.rounds}
-                    onChange={(e) => setNewScene(prev => ({ ...prev, rounds: Number(e.target.value) }))}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500"
-                  >
-                    {[3, 5, 10].map(num => (
-                      <option key={num} value={num}>{num} 轮</option>
-                    ))}
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">难度等级</label>
-                  <div className="flex gap-2">
-                    {difficultyOptions.map(diff => (
-                      <button
-                        key={diff.value}
-                        onClick={() => setNewScene(prev => ({ ...prev, difficulty: diff.value as '简单' | '中等' | '困难' }))}
-                        className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-                          newScene.difficulty === diff.value
-                            ? `${diff.color} ring-2 ring-offset-1 ring-current`
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
-                      >
-                        {diff.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              
               {/* 练习模式选择 */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">🎮 练习模式</label>
@@ -697,37 +589,6 @@ export function ScenePage() {
                       {mode.label}
                     </button>
                   ))}
-                </div>
-              </div>
-              
-              {/* 时间设置 */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">⏱️ 每轮时间限制（秒）</label>
-                  <input
-                    type="number"
-                    min="30"
-                    max="600"
-                    step="30"
-                    value={newScene.timePerRound}
-                    onChange={(e) => setNewScene(prev => ({ ...prev, timePerRound: Number(e.target.value) }))}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500"
-                  />
-                  <p className="text-xs text-gray-400 mt-1">默认 120 秒（2分钟）</p>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">⏰ 总时长限制（秒）</label>
-                  <input
-                    type="number"
-                    min="60"
-                    max="1800"
-                    step="60"
-                    value={newScene.totalTimeLimit}
-                    onChange={(e) => setNewScene(prev => ({ ...prev, totalTimeLimit: Number(e.target.value) }))}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500"
-                  />
-                  <p className="text-xs text-gray-400 mt-1">默认 600 秒（10分钟）</p>
                 </div>
               </div>
               
@@ -772,16 +633,29 @@ export function ScenePage() {
                 <div className="p-4 bg-blue-50 rounded-xl">
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-xs text-blue-600 font-medium">✨ 提取结果（知识要点）</p>
-                    <span className="text-xs text-gray-400">可直接编辑</span>
+                    {newScene.summaryText.trim() && (
+                      <button
+                        onClick={() => {
+                          setTextEditorValue(newScene.summaryText);
+                          setTextEditorTarget('add');
+                          setShowTextEditorModal('summary');
+                        }}
+                        className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-600"
+                      >
+                        <Pencil className="w-3 h-3" />
+                        编辑
+                      </button>
+                    )}
                   </div>
                   {newScene.summaryText.trim() ? (
-                    <textarea
-                      value={newScene.summaryText}
-                      onChange={(e) => setNewScene(prev => ({ ...prev, summaryText: e.target.value }))}
-                      rows={4}
-                      placeholder="维度名称：要点详情（每行一个维度）"
-                      className="w-full px-3 py-2 border border-blue-200 rounded-lg text-xs focus:outline-none focus:border-blue-500 resize-none font-mono"
-                    />
+                    <ul className="w-full px-3 py-2 border border-blue-200 rounded-lg bg-white text-xs space-y-1 max-h-32 overflow-y-auto">
+                      {parseSummaryLines(newScene.summaryText).map((item, idx) => (
+                        <li key={idx} className="flex items-start gap-1">
+                          <span className="text-blue-500 font-medium whitespace-nowrap">{item.label}：</span>
+                          <span className="text-gray-600">{item.content}</span>
+                        </li>
+                      ))}
+                    </ul>
                   ) : (
                     <p className="text-xs text-gray-400">请先输入标准文本并点击"提取摘要"按钮</p>
                   )}
@@ -833,14 +707,44 @@ export function ScenePage() {
                 
                 {/* 评分规则设定 */}
                 <div className="p-4 bg-green-50 rounded-xl">
-                  <p className="text-xs text-green-600 font-medium mb-2">📊 评分规则设定{newScene.practiceMode === '自由式' && <span className="text-red-500 ml-1">*</span>}</p>
-                  <textarea
-                    value={newScene.scoringRules}
-                    onChange={(e) => setNewScene(prev => ({ ...prev, scoringRules: e.target.value }))}
-                    placeholder="请输入评分规则，例如：\n产品知识准确性：30分\n沟通技巧：25分\n需求理解：25分\n销售策略：20分"
-                    rows={4}
-                    className="w-full px-3 py-2 border border-green-200 rounded-lg text-xs focus:outline-none focus:border-green-500 resize-none"
-                  />
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs text-green-600 font-medium">📊 评分规则设定{newScene.practiceMode === '自由式' && <span className="text-red-500 ml-1">*</span>}</p>
+                    {newScene.scoringRules.trim() && (
+                      <button
+                        onClick={() => {
+                          setTextEditorValue(newScene.scoringRules);
+                          setTextEditorTarget('add');
+                          setShowTextEditorModal('scoring');
+                        }}
+                        className="flex items-center gap-1 text-xs text-green-500 hover:text-green-600"
+                      >
+                        <Pencil className="w-3 h-3" />
+                        编辑
+                      </button>
+                    )}
+                  </div>
+                  {newScene.scoringRules.trim() ? (
+                    <ul className="w-full px-3 py-2 border border-green-200 rounded-lg bg-white text-xs space-y-1 max-h-32 overflow-y-auto">
+                      {newScene.scoringRules.trim().split('\n').filter(l => l.trim()).map((line, idx) => (
+                        <li key={idx} className="text-gray-600">{line.trim()}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-xs text-gray-400">请先提取摘要后自动生成，或点击编辑手动输入</p>
+                  )}
+                  {!newScene.scoringRules.trim() && (
+                    <button
+                      onClick={() => {
+                        setTextEditorValue('');
+                        setTextEditorTarget('add');
+                        setShowTextEditorModal('scoring');
+                      }}
+                      className="mt-2 flex items-center gap-1 text-xs text-green-500 hover:text-green-600"
+                    >
+                      <Pencil className="w-3 h-3" />
+                      手动输入评分规则
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -905,40 +809,6 @@ export function ScenePage() {
                 />
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">练习轮数</label>
-                  <select
-                    value={editingScene.rounds}
-                    onChange={(e) => setEditingScene(prev => prev ? { ...prev, rounds: Number(e.target.value) } : null)}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500"
-                  >
-                    {[3, 5, 10].map(num => (
-                      <option key={num} value={num}>{num} 轮</option>
-                    ))}
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">难度等级</label>
-                  <div className="flex gap-2">
-                    {difficultyOptions.map(diff => (
-                      <button
-                        key={diff.value}
-                        onClick={() => setEditingScene(prev => prev ? { ...prev, difficulty: diff.value as '简单' | '中等' | '困难' } : null)}
-                        className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-                          editingScene.difficulty === diff.value
-                            ? `${diff.color} ring-2 ring-offset-1 ring-current`
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
-                      >
-                        {diff.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              
               {/* 练习模式选择 */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">🎮 练习模式</label>
@@ -958,37 +828,6 @@ export function ScenePage() {
                       {mode.label}
                     </button>
                   ))}
-                </div>
-              </div>
-              
-              {/* 时间设置 */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">⏱️ 每轮时间限制（秒）</label>
-                  <input
-                    type="number"
-                    min="30"
-                    max="600"
-                    step="30"
-                    value={editingScene.timePerRound}
-                    onChange={(e) => setEditingScene(prev => prev ? { ...prev, timePerRound: Number(e.target.value) } : null)}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500"
-                  />
-                  <p className="text-xs text-gray-400 mt-1">默认 120 秒（2分钟）</p>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">⏰ 总时长限制（秒）</label>
-                  <input
-                    type="number"
-                    min="60"
-                    max="1800"
-                    step="60"
-                    value={editingScene.totalTimeLimit}
-                    onChange={(e) => setEditingScene(prev => prev ? { ...prev, totalTimeLimit: Number(e.target.value) } : null)}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500"
-                  />
-                  <p className="text-xs text-gray-400 mt-1">默认 600 秒（10分钟）</p>
                 </div>
               </div>
               
@@ -1033,16 +872,29 @@ export function ScenePage() {
                 <div className="p-4 bg-blue-50 rounded-xl">
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-xs text-blue-600 font-medium">✨ 提取结果（知识要点）</p>
-                    <span className="text-xs text-gray-400">可直接编辑</span>
+                    {editingScene.summaryText?.trim() && (
+                      <button
+                        onClick={() => {
+                          setTextEditorValue(editingScene.summaryText || '');
+                          setTextEditorTarget('edit');
+                          setShowTextEditorModal('summary');
+                        }}
+                        className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-600"
+                      >
+                        <Pencil className="w-3 h-3" />
+                        编辑
+                      </button>
+                    )}
                   </div>
                   {editingScene.summaryText?.trim() ? (
-                    <textarea
-                      value={editingScene.summaryText}
-                      onChange={(e) => setEditingScene(prev => prev ? { ...prev, summaryText: e.target.value } : null)}
-                      rows={4}
-                      placeholder="维度名称：要点详情（每行一个维度）"
-                      className="w-full px-3 py-2 border border-blue-200 rounded-lg text-xs focus:outline-none focus:border-blue-500 resize-none font-mono"
-                    />
+                    <ul className="w-full px-3 py-2 border border-blue-200 rounded-lg bg-white text-xs space-y-1 max-h-32 overflow-y-auto">
+                      {parseSummaryLines(editingScene.summaryText).map((item, idx) => (
+                        <li key={idx} className="flex items-start gap-1">
+                          <span className="text-blue-500 font-medium whitespace-nowrap">{item.label}：</span>
+                          <span className="text-gray-600">{item.content}</span>
+                        </li>
+                      ))}
+                    </ul>
                   ) : (
                     <p className="text-xs text-gray-400">请先输入标准文本并点击"提取摘要"按钮</p>
                   )}
@@ -1099,14 +951,44 @@ export function ScenePage() {
               
               {/* 评分规则设定 */}
               <div className="p-4 bg-green-50 rounded-xl">
-                <p className="text-xs text-green-600 font-medium mb-2">📊 评分规则设定{editingScene.practiceMode === '自由式' && <span className="text-red-500 ml-1">*</span>}</p>
-                <textarea
-                  value={editingScene.scoringRules}
-                  onChange={(e) => setEditingScene(prev => prev ? { ...prev, scoringRules: e.target.value } : null)}
-                  placeholder="请输入评分规则，例如：\n产品知识准确性：30分\n沟通技巧：25分\n需求理解：25分\n销售策略：20分"
-                  rows={4}
-                  className="w-full px-3 py-2 border border-green-200 rounded-lg text-xs focus:outline-none focus:border-green-500 resize-none"
-                />
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs text-green-600 font-medium">📊 评分规则设定{editingScene.practiceMode === '自由式' && <span className="text-red-500 ml-1">*</span>}</p>
+                  {editingScene.scoringRules?.trim() && (
+                    <button
+                      onClick={() => {
+                        setTextEditorValue(editingScene.scoringRules || '');
+                        setTextEditorTarget('edit');
+                        setShowTextEditorModal('scoring');
+                      }}
+                      className="flex items-center gap-1 text-xs text-green-500 hover:text-green-600"
+                    >
+                      <Pencil className="w-3 h-3" />
+                      编辑
+                    </button>
+                  )}
+                </div>
+                {editingScene.scoringRules?.trim() ? (
+                  <ul className="w-full px-3 py-2 border border-green-200 rounded-lg bg-white text-xs space-y-1 max-h-32 overflow-y-auto">
+                    {editingScene.scoringRules.trim().split('\n').filter(l => l.trim()).map((line, idx) => (
+                      <li key={idx} className="text-gray-600">{line.trim()}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-gray-400">请先提取摘要后自动生成，或点击编辑手动输入</p>
+                )}
+                {!editingScene.scoringRules?.trim() && (
+                  <button
+                    onClick={() => {
+                      setTextEditorValue('');
+                      setTextEditorTarget('edit');
+                      setShowTextEditorModal('scoring');
+                    }}
+                    className="mt-2 flex items-center gap-1 text-xs text-green-500 hover:text-green-600"
+                  >
+                    <Pencil className="w-3 h-3" />
+                    手动输入评分规则
+                  </button>
+                )}
               </div>
             </div>
             
@@ -1176,6 +1058,69 @@ export function ScenePage() {
                   保存设置
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 长文本编辑弹窗 */}
+      {showTextEditorModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] px-4">
+          <div className="bg-white w-full max-w-3xl rounded-2xl p-6 max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-gray-800">
+                {showTextEditorModal === 'summary' ? '编辑知识要点' : '编辑评分规则'}
+              </h3>
+              <button
+                onClick={() => setShowTextEditorModal(null)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+
+            <textarea
+              value={textEditorValue}
+              onChange={(e) => setTextEditorValue(e.target.value)}
+              placeholder={
+                showTextEditorModal === 'summary'
+                  ? '维度名称：要点详情（每行一个维度）'
+                  : '请输入评分规则，例如：\n产品知识准确性：30分\n沟通技巧：25分\n需求理解：25分\n销售策略：20分'
+              }
+              rows={14}
+              autoFocus
+              className="flex-1 w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500 resize-none text-sm font-mono min-h-[300px]"
+            />
+
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={() => setShowTextEditorModal(null)}
+                className="flex-1 py-2 border border-gray-200 rounded-xl text-gray-600 font-medium hover:bg-gray-50 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => {
+                  if (textEditorTarget === 'add') {
+                    if (showTextEditorModal === 'summary') {
+                      setNewScene(prev => ({ ...prev, summaryText: textEditorValue }));
+                    } else {
+                      setNewScene(prev => ({ ...prev, scoringRules: textEditorValue }));
+                    }
+                  } else {
+                    if (showTextEditorModal === 'summary') {
+                      setEditingScene(prev => prev ? { ...prev, summaryText: textEditorValue } : null);
+                    } else {
+                      setEditingScene(prev => prev ? { ...prev, scoringRules: textEditorValue } : null);
+                    }
+                  }
+                  setShowTextEditorModal(null);
+                }}
+                className="flex-1 py-2 bg-primary-500 text-white rounded-xl font-medium hover:bg-primary-600 transition-colors flex items-center justify-center gap-2"
+              >
+                <Save className="w-4 h-4" />
+                保存
+              </button>
             </div>
           </div>
         </div>

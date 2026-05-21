@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from sqlalchemy import JSON, DateTime, String, Integer, Text, Boolean
+from sqlalchemy import JSON, DateTime, String, Integer, Text, Boolean, BigInteger
 from sqlalchemy.orm import Mapped, mapped_column
 
 from deerflow.roleplay import RoleplayBase
@@ -21,12 +21,8 @@ class SceneRow(RoleplayBase):
     create_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     update_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     
-    # 模型中新增的字段（需要添加到数据库）
-    difficulty: Mapped[str] = mapped_column(String(20), default="简单")
-    rounds: Mapped[int] = mapped_column(Integer, default=5)
-    time_per_round: Mapped[int] = mapped_column(Integer, default=120)
-    total_time_limit: Mapped[int] = mapped_column(Integer, default=600)
-    model_name: Mapped[str] = mapped_column(String(128), default="gpt-4o-mini")
+    # 模型字段
+    model_name: Mapped[str] = mapped_column(String(128), nullable=True)
     system_prompt: Mapped[str] = mapped_column(Text)
     user_prompt_template: Mapped[str] = mapped_column(Text)
     metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
@@ -37,6 +33,26 @@ class SceneRow(RoleplayBase):
     summary_text: Mapped[str] = mapped_column(Text)
     exam_categories: Mapped[str] = mapped_column(String(200))
     scoring_rules: Mapped[str] = mapped_column(Text)
+
+class CourseRow(RoleplayBase):
+    __tablename__ = "pract_course"
+    
+    course_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    course_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    course_type: Mapped[int] = mapped_column(Integer, nullable=False, default=1)  # 1: 练习，2: 考试
+    scene_id: Mapped[int] = mapped_column(BigInteger, nullable=False)  # 关联的剧本 ID
+    simulated_role_id: Mapped[int] = mapped_column(BigInteger, nullable=True)  # 关联的模拟角色 ID
+    practice_mode: Mapped[str] = mapped_column(String(20), nullable=False)  # text: 文本，voice: 语音，call: 模拟电话
+    difficulty: Mapped[int] = mapped_column(Integer, nullable=True)  # 难度等级
+    total_score: Mapped[int] = mapped_column(Integer, nullable=True, default=100)  # 课程总分
+    passing_score: Mapped[int] = mapped_column(Integer, nullable=True, default=60)  # 达标分数要求
+    time_limit: Mapped[int] = mapped_column(Integer, nullable=True)  # 单次练习时长限制（分钟）
+    max_attempts: Mapped[int] = mapped_column(Integer, nullable=True, default=1)  # 允许尝试次数
+    start_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)  # 开放开始时间
+    end_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)  # 开放结束时间
+    status: Mapped[int] = mapped_column(Integer, nullable=False, default=1)  # 0: 未发布，1: 已发布，2: 已结束
+    create_by: Mapped[str] = mapped_column(String(50), default='')  # 创建人
+    create_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)  # 创建时间
 
 class EvaluationRow(RoleplayBase):
     __tablename__ = "pract_evaluation"

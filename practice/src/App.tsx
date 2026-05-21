@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { HomePage, ChatPage, StartPage, ScenePage, ProfilePage, LoginPage } from './pages';
+import { HomePage, ChatPage, StartPage, ScenePage, CoursePage, ProfilePage, LoginPage } from './pages';
 import { api } from './api';
 import './index.css';
 
@@ -60,6 +60,16 @@ function App() {
             element={
               <ProtectedRoute>
                 <ScenePage />
+              </ProtectedRoute>
+            } 
+          />
+
+          {/* 课程页面 */}
+          <Route 
+            path="/course" 
+            element={
+              <ProtectedRoute>
+                <CoursePage />
               </ProtectedRoute>
             } 
           />

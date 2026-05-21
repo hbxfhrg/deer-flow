@@ -1,5 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
-import type { Thread, Run, EvaluationResult, Message, UserInfo, LoginResponse, Scene } from '@/types';
+import type { Thread, Run, EvaluationResult, Message, UserInfo, LoginResponse, Scene, Course } from '@/types';
 
 const API_BASE_URL = '/api';
 
@@ -126,6 +126,34 @@ export const api = {
       message?: string;
     }> {
       const response = await axiosInstance.post('/roleplay/scenes/extract-summary', data);
+      return response.data;
+    },
+  },
+
+  // 课程接口
+  courses: {
+    async list(): Promise<Course[]> {
+      const response = await axiosInstance.get('/roleplay/courses');
+      return response.data.courses;
+    },
+    
+    async get(courseId: number): Promise<Course> {
+      const response = await axiosInstance.get(`/roleplay/courses/${courseId}`);
+      return response.data;
+    },
+    
+    async create(data: Partial<Course>): Promise<{ message: string; course_id: number }> {
+      const response = await axiosInstance.post('/roleplay/courses', data);
+      return response.data;
+    },
+    
+    async update(courseId: number, data: Partial<Course>): Promise<{ message: string }> {
+      const response = await axiosInstance.put(`/roleplay/courses/${courseId}`, data);
+      return response.data;
+    },
+    
+    async delete(courseId: number): Promise<{ message: string }> {
+      const response = await axiosInstance.delete(`/roleplay/courses/${courseId}`);
       return response.data;
     },
   },

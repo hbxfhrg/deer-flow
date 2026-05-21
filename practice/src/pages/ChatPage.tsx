@@ -1,12 +1,28 @@
 import { ArrowLeft, RefreshCw, HelpCircle, Settings, LogOut } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { MessageBubble } from '@/components/MessageBubble';
 import { EvaluationCard } from '@/components/EvaluationCard';
 import { ChatInput } from '@/components/ChatInput';
 import { useRoleplay } from '@/hooks/useRoleplay';
+import api from '../api';
+import type { Course } from '@/types';
 
 export function ChatPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const courseId = searchParams.get('courseId');
+  const [courseInfo, setCourseInfo] = useState<Course | null>(null);
+
+  // 加载课程信息
+  useEffect(() => {
+    if (courseId) {
+      api.courses.get(Number(courseId)).then(data => {
+        if (data) setCourseInfo(data);
+      }).catch(() => {});
+    }
+  }, [courseId]);
+
   const {
     messages,
     isLoading,
@@ -60,12 +76,22 @@ export function ChatPage() {
           {/* 开始按钮 */}
           {messages.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center px-4">
+              {/* 场景信息 */}
+              {courseInfo?.sceneName && (
+                <div className="w-full max-w-md text-center mb-6">
+                  <h2 className="text-xl font-bold text-gray-800 mb-2">{courseInfo.sceneName}</h2>
+                  {courseInfo.sceneDescription && (
+                    <p className="text-sm text-gray-500">{courseInfo.sceneDescription}</p>
+                  )}
+                </div>
+              )}
+
               <div className="w-20 h-20 bg-primary-100 rounded-full flex items-center justify-center mb-4">
                 <RefreshCw className="w-8 h-8 text-primary-500" />
               </div>
               <h2 className="text-xl font-semibold text-gray-800 mb-2">准备开始对练</h2>
               <p className="text-sm text-gray-500 text-center mb-6">
-                点击下方按钮开始您的销售技巧训练之旅
+                点击下方按钮开始您的练习之旅
               </p>
               <button
                 onClick={initConversation}

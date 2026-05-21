@@ -4,7 +4,7 @@ from typing import Optional, Dict, AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from deerflow.roleplay import get_db
-from deerflow.roleplay.services import SceneService, EvaluationService, PracticeRecordService, StatisticsService
+from deerflow.roleplay.services import SceneService, EvaluationService, PracticeRecordService, StatisticsService, CourseService
 from deerflow.roleplay.auth_service import AuthService
 
 router = APIRouter(prefix="/api/roleplay", tags=["roleplay"])
@@ -13,10 +13,6 @@ class SceneCreate(BaseModel):
     scene_id: Optional[int] = None
     scene_name: str
     scene_description: Optional[str] = ""
-    difficulty: Optional[str] = "简单"
-    rounds: Optional[int] = 5
-    time_per_round: Optional[int] = Field(default=120, alias="timePerRound")
-    total_time_limit: Optional[int] = Field(default=600, alias="totalTimeLimit")
     model_name: Optional[str] = Field(default=None, alias="modelName")
     system_prompt: Optional[str] = ""
     user_prompt_template: Optional[str] = ""
@@ -29,6 +25,7 @@ class SceneCreate(BaseModel):
     exam_categories: Optional[str] = Field(default=None, alias="examCategories")
     scoring_rules: Optional[str] = Field(default=None, alias="scoringRules")
     prompt_template: Optional[str] = Field(default=None, alias="promptTemplate")
+    create_by: Optional[str] = Field(default=None, alias="createBy")
 
     class Config:
         populate_by_name = True
@@ -36,10 +33,6 @@ class SceneCreate(BaseModel):
 class SceneUpdate(BaseModel):
     scene_name: Optional[str] = None
     scene_description: Optional[str] = None
-    difficulty: Optional[str] = None
-    rounds: Optional[int] = None
-    time_per_round: Optional[int] = Field(default=None, alias="timePerRound")
-    total_time_limit: Optional[int] = Field(default=None, alias="totalTimeLimit")
     model_name: Optional[str] = Field(default=None, alias="modelName")
     system_prompt: Optional[str] = None
     user_prompt_template: Optional[str] = None
@@ -103,10 +96,6 @@ async def get_scenes():
             "sensitive_word_lib_id": s.sensitive_word_lib_id,
             "dialog_round_limit": s.dialog_round_limit,
             "end_speech": s.end_speech,
-            "difficulty": s.difficulty,
-            "rounds": s.rounds,
-            "timePerRound": s.time_per_round,
-            "totalTimeLimit": s.total_time_limit,
             "modelName": s.model_name,
             "systemPrompt": s.system_prompt,
             "userPromptTemplate": s.user_prompt_template,
@@ -139,10 +128,6 @@ async def get_scene(scene_id: int):
         "sensitive_word_lib_id": scene.sensitive_word_lib_id,
         "dialog_round_limit": scene.dialog_round_limit,
         "end_speech": scene.end_speech,
-        "difficulty": scene.difficulty,
-        "rounds": scene.rounds,
-        "timePerRound": scene.time_per_round,
-        "totalTimeLimit": scene.total_time_limit,
         "modelName": scene.model_name,
         "systemPrompt": scene.system_prompt,
         "userPromptTemplate": scene.user_prompt_template,
@@ -179,6 +164,109 @@ async def delete_scene(scene_id: int):
     if not result:
         raise HTTPException(status_code=404, detail="Scene not found")
     return {"message": "Scene deleted successfully"}
+
+# ==================== 课程管理 APIs ====================
+
+class CourseCreate(BaseModel):
+    course_name: str
+    course_type: Optional[int] = Field(default=1, alias="courseType")  # 1: 练习，2: 考试
+    scene_id: Optional[int] = Field(default=None, alias="sceneId")
+    simulated_role_id: Optional[int] = Field(default=None, alias="simulatedRoleId")
+    practice_mode: Optional[str] = Field(default="text", alias="practiceMode")  # text/voice/call
+    difficulty: Optional[int] = Field(default=None, alias="difficulty")
+    total_score: Optional[int] = Field(default=100, alias="totalScore")
+    passing_score: Optional[int] = Field(default=60, alias="passingScore")
+    time_limit: Optional[int] = Field(default=None, alias="timeLimit")
+    max_attempts: Optional[int] = Field(default=1, alias="maxAttempts")
+    start_time: Optional[str] = Field(default=None, alias="startTime")
+    end_time: Optional[str] = Field(default=None, alias="endTime")
+    status: Optional[int] = Field(default=0, alias="status")  # 0: 未发布，1: 已发布，2: 已结束
+    create_by: Optional[str] = None
+
+    class Config:
+        populate_by_name = True
+
+class CourseUpdate(BaseModel):
+    course_name: Optional[str] = None
+    course_type: Optional[int] = Field(default=None, alias="courseType")
+    scene_id: Optional[int] = Field(default=None, alias="sceneId")
+    simulated_role_id: Optional[int] = Field(default=None, alias="simulatedRoleId")
+    practice_mode: Optional[str] = Field(default=None, alias="practiceMode")
+    difficulty: Optional[int] = Field(default=None, alias="difficulty")
+    total_score: Optional[int] = Field(default=None, alias="totalScore")
+    passing_score: Optional[int] = Field(default=None, alias="passingScore")
+    time_limit: Optional[int] = Field(default=None, alias="timeLimit")
+    max_attempts: Optional[int] = Field(default=None, alias="maxAttempts")
+    start_time: Optional[str] = Field(default=None, alias="startTime")
+    end_time: Optional[str] = Field(default=None, alias="endTime")
+    status: Optional[int] = Field(default=None, alias="status")
+
+    class Config:
+        populate_by_name = True
+
+def _course_to_dict(course, scene_map: dict = None):
+    """将 CourseRow 转为前端驼峰命名 dict"""
+    return {
+        "courseId": course.course_id,
+        "course_name": course.course_name,
+        "courseType": course.course_type,
+        "sceneId": course.scene_id,
+        "sceneName": scene_map.get(course.scene_id) if scene_map and course.scene_id else None,
+        "sceneDescription": scene_map.get(f"desc_{course.scene_id}") if scene_map and course.scene_id else None,
+        "simulatedRoleId": course.simulated_role_id,
+        "practiceMode": course.practice_mode,
+        "difficulty": course.difficulty,
+        "totalScore": course.total_score,
+        "passingScore": course.passing_score,
+        "timeLimit": course.time_limit,
+        "maxAttempts": course.max_attempts,
+        "startTime": course.start_time.isoformat() if course.start_time else None,
+        "endTime": course.end_time.isoformat() if course.end_time else None,
+        "status": course.status,
+        "create_by": course.create_by,
+        "createdAt": course.create_time.isoformat() if course.create_time else None,
+    }
+
+@router.get("/courses", summary="获取课程列表")
+async def get_courses():
+    courses = await CourseService.get_courses()
+    scenes = await SceneService.get_scenes()
+    scene_map = {}
+    for s in scenes:
+        scene_map[s.scene_id] = s.scene_name
+        scene_map[f"desc_{s.scene_id}"] = s.scene_description
+    return {"courses": [_course_to_dict(c, scene_map) for c in courses]}
+
+@router.get("/courses/{course_id}", summary="获取课程详情")
+async def get_course(course_id: int):
+    course = await CourseService.get_course(course_id)
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    scene = await SceneService.get_scene(course.scene_id) if course.scene_id else None
+    result = _course_to_dict(course)
+    if scene:
+        result["sceneName"] = scene.scene_name
+        result["sceneDescription"] = scene.scene_description
+    return result
+
+@router.post("/courses", summary="创建课程")
+async def create_course(course: CourseCreate):
+    result = await CourseService.create_course(course.dict())
+    return {"message": "Course created successfully", "course_id": result.course_id}
+
+@router.put("/courses/{course_id}", summary="更新课程")
+async def update_course(course_id: int, course: CourseUpdate):
+    result = await CourseService.update_course(course_id, course.dict(exclude_none=True))
+    if not result:
+        raise HTTPException(status_code=404, detail="Course not found")
+    return {"message": "Course updated successfully"}
+
+@router.delete("/courses/{course_id}", summary="删除课程")
+async def delete_course(course_id: int):
+    result = await CourseService.delete_course(course_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Course not found")
+    return {"message": "Course deleted successfully"}
 
 # 提取摘要请求模型
 class ExtractSummaryRequest(BaseModel):

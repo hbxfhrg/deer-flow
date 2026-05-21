@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import re
 
 from deerflow.roleplay import get_db, get_session_factory
-from deerflow.roleplay.models import SceneRow, EvaluationRow, PracticeRecordRow
+from deerflow.roleplay.models import SceneRow, EvaluationRow, PracticeRecordRow, CourseRow
 
 # 驼峰命名转下划线命名（通用函数）
 def camel_to_snake(name: str) -> str:
@@ -49,16 +49,12 @@ class SceneService:
                 dialog_round_limit=snake_case_data.get("dialog_round_limit"),
                 end_speech=snake_case_data.get("end_speech"),
                 status=snake_case_data.get("enabled", True) if isinstance(snake_case_data.get("enabled", True), int) else (1 if snake_case_data.get("enabled", True) else 0),
-                create_by=snake_case_data.get("create_by"),
+                create_by=snake_case_data.get("create_by", "system"),
                 create_time=datetime.now(UTC),
                 update_time=datetime.now(UTC),
                 
                 # 模型新增的字段
-                difficulty=snake_case_data.get("difficulty", "简单"),
-                rounds=snake_case_data.get("rounds", 5),
-                time_per_round=snake_case_data.get("time_per_round", 120),
-                total_time_limit=snake_case_data.get("total_time_limit", 600),
-                model_name=snake_case_data.get("model_name", "gpt-4o-mini"),
+                model_name=snake_case_data.get("model_name"),
                 system_prompt=snake_case_data.get("system_prompt", ""),
                 user_prompt_template=snake_case_data.get("user_prompt_template", ""),
                 metadata_json=snake_case_data.get("metadata_json", {}),
@@ -120,6 +116,82 @@ class SceneService:
             if scene:
                 scene.status = 0
                 scene.update_time = datetime.now(UTC)
+                await session.commit()
+                return True
+            return False
+
+class CourseService:
+    @staticmethod
+    async def get_courses():
+        async with get_db() as session:
+            result = await session.execute(
+                select(CourseRow).order_by(CourseRow.create_time.desc())
+            )
+            return result.scalars().all()
+
+    @staticmethod
+    async def get_course(course_id: int):
+        async with get_db() as session:
+            result = await session.execute(
+                select(CourseRow).where(CourseRow.course_id == course_id)
+            )
+            return result.scalar_one_or_none()
+
+    @staticmethod
+    async def create_course(data: dict):
+        async with get_db() as session:
+            snake_case_data = {camel_to_snake(k): v for k, v in data.items()}
+            course = CourseRow(
+                course_name=snake_case_data.get("course_name"),
+                course_type=snake_case_data.get("course_type", 1),
+                scene_id=snake_case_data.get("scene_id"),
+                simulated_role_id=snake_case_data.get("simulated_role_id"),
+                practice_mode=snake_case_data.get("practice_mode", "text"),
+                difficulty=snake_case_data.get("difficulty"),
+                total_score=snake_case_data.get("total_score", 100),
+                passing_score=snake_case_data.get("passing_score", 60),
+                time_limit=snake_case_data.get("time_limit"),
+                max_attempts=snake_case_data.get("max_attempts", 1),
+                start_time=snake_case_data.get("start_time"),
+                end_time=snake_case_data.get("end_time"),
+                status=snake_case_data.get("status", 0),
+                create_by=snake_case_data.get("create_by", ''),
+                create_time=datetime.now(UTC),
+            )
+            session.add(course)
+            await session.commit()
+            await session.refresh(course)
+            return course
+
+    @staticmethod
+    async def update_course(course_id: int, data: dict):
+        async with get_db() as session:
+            result = await session.execute(
+                select(CourseRow).where(CourseRow.course_id == course_id)
+            )
+            course = result.scalar_one_or_none()
+            if course:
+                for key, value in data.items():
+                    if value is None:
+                        continue
+                    db_key = camel_to_snake(key)
+                    if hasattr(course, db_key):
+                        setattr(course, db_key, value)
+                    elif hasattr(course, key):
+                        setattr(course, key, value)
+                await session.commit()
+                await session.refresh(course)
+            return course
+
+    @staticmethod
+    async def delete_course(course_id: int):
+        async with get_db() as session:
+            result = await session.execute(
+                select(CourseRow).where(CourseRow.course_id == course_id)
+            )
+            course = result.scalar_one_or_none()
+            if course:
+                course.status = 0
                 await session.commit()
                 return True
             return False
