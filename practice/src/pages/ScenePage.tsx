@@ -188,10 +188,17 @@ export function ScenePage() {
       });
       
       if (response.success && response.summaryText) {
+        // 自动生成默认评分规则
+        const items = parseSummaryLines(response.summaryText);
+        const autoScoringRules = items
+          .map(item => `${item.label}：权重10分，每提到1个知识点得2分，3个知识点以上得10分`)
+          .join('\n');
+        
         setEditingScene(prev => prev ? {
           ...prev,
           summaryText: response.summaryText,
           examCategories: '', // 清空之前选择的考核分类
+          scoringRules: autoScoringRules,
         } : null);
       } else {
         alert('提取摘要失败：' + (response.message || '未知错误'));
@@ -300,10 +307,17 @@ export function ScenePage() {
       });
       
       if (response.success && response.summaryText) {
+        // 自动生成默认评分规则
+        const items = parseSummaryLines(response.summaryText);
+        const autoScoringRules = items
+          .map(item => `${item.label}：权重10分，每提到1个知识点得2分，3个知识点以上得10分`)
+          .join('\n');
+        
         setNewScene(prev => ({
           ...prev,
           summaryText: response.summaryText,
           examCategories: '', // 清空之前选择的考核分类
+          scoringRules: autoScoringRules,
         }));
       } else {
         alert('提取摘要失败：' + (response.message || '未知错误'));
@@ -756,21 +770,18 @@ export function ScenePage() {
               {/* 提取结果展示 */}
               <div className="space-y-4">
                 <div className="p-4 bg-blue-50 rounded-xl">
-                  <p className="text-xs text-blue-600 font-medium mb-2">✨ 提取结果（知识要点）</p>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs text-blue-600 font-medium">✨ 提取结果（知识要点）</p>
+                    <span className="text-xs text-gray-400">可直接编辑</span>
+                  </div>
                   {newScene.summaryText.trim() ? (
-                    <div className="space-y-2">
-                      <div>
-                        <p className="text-xs text-gray-500 mb-1">分类与要点</p>
-                        <ul className="text-xs text-gray-600 space-y-1">
-                          {parseSummaryLines(newScene.summaryText).map((item, idx) => (
-                            <li key={idx} className="flex items-start gap-1">
-                              <span className="text-blue-500 font-medium whitespace-nowrap">{item.label}：</span>
-                              <span>{item.content}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
+                    <textarea
+                      value={newScene.summaryText}
+                      onChange={(e) => setNewScene(prev => ({ ...prev, summaryText: e.target.value }))}
+                      rows={4}
+                      placeholder="维度名称：要点详情（每行一个维度）"
+                      className="w-full px-3 py-2 border border-blue-200 rounded-lg text-xs focus:outline-none focus:border-blue-500 resize-none font-mono"
+                    />
                   ) : (
                     <p className="text-xs text-gray-400">请先输入标准文本并点击"提取摘要"按钮</p>
                   )}
@@ -1020,21 +1031,18 @@ export function ScenePage() {
               {/* 提取结果展示 */}
               <div className="space-y-4">
                 <div className="p-4 bg-blue-50 rounded-xl">
-                  <p className="text-xs text-blue-600 font-medium mb-2">✨ 提取结果（知识要点）</p>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs text-blue-600 font-medium">✨ 提取结果（知识要点）</p>
+                    <span className="text-xs text-gray-400">可直接编辑</span>
+                  </div>
                   {editingScene.summaryText?.trim() ? (
-                    <div className="space-y-2">
-                      <div>
-                        <p className="text-xs text-gray-500 mb-1">分类与要点</p>
-                        <ul className="text-xs text-gray-600 space-y-1">
-                          {editingScene.summaryText && parseSummaryLines(editingScene.summaryText).map((item, idx) => (
-                            <li key={idx} className="flex items-start gap-1">
-                              <span className="text-blue-500 font-medium whitespace-nowrap">{item.label}：</span>
-                              <span>{item.content}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
+                    <textarea
+                      value={editingScene.summaryText}
+                      onChange={(e) => setEditingScene(prev => prev ? { ...prev, summaryText: e.target.value } : null)}
+                      rows={4}
+                      placeholder="维度名称：要点详情（每行一个维度）"
+                      className="w-full px-3 py-2 border border-blue-200 rounded-lg text-xs focus:outline-none focus:border-blue-500 resize-none font-mono"
+                    />
                   ) : (
                     <p className="text-xs text-gray-400">请先输入标准文本并点击"提取摘要"按钮</p>
                   )}
