@@ -1,5 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
-import type { Thread, Run, EvaluationResult, Message, UserInfo, LoginResponse, Scene, Course } from '@/types';
+import type { Thread, Run, EvaluationResult, Message, UserInfo, LoginResponse, Scene, Course, PracticeStartResponse, PracticeTurnResponse, PracticeEndResponse } from '@/types';
 
 const API_BASE_URL = '/api';
 
@@ -217,6 +217,34 @@ export const api = {
     async getLeaderboard(limit: number = 10): Promise<any> {
       const response = await axiosInstance.get('/roleplay/statistics/leaderboard', {
         params: { limit },
+      });
+      return response.data;
+    },
+  },
+
+  // 自由式对练接口
+  practice: {
+    async start(courseId: number): Promise<PracticeStartResponse> {
+      const userStr = localStorage.getItem('roleplay_user');
+      const user = userStr ? JSON.parse(userStr) : null;
+      const response = await axiosInstance.post('/roleplay/practice/start', {
+        courseId,
+        userName: user?.user_name || 'anonymous',
+      });
+      return response.data;
+    },
+    
+    async turn(recordId: number, message: string): Promise<PracticeTurnResponse> {
+      const response = await axiosInstance.post('/roleplay/practice/turn', {
+        recordId,
+        message,
+      });
+      return response.data;
+    },
+    
+    async end(recordId: number): Promise<PracticeEndResponse> {
+      const response = await axiosInstance.post('/roleplay/practice/end', {
+        recordId,
       });
       return response.data;
     },

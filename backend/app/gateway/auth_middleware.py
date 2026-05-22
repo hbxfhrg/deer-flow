@@ -29,6 +29,12 @@ _PUBLIC_PATH_PREFIXES: tuple[str, ...] = (
     "/openapi.json",
     # Roleplay public auth endpoints
     "/api/roleplay/auth/user",
+    # Roleplay practice endpoints (free practice mode)
+    "/api/roleplay/practice/",
+    # Roleplay scenes endpoints (for testing)
+    "/api/roleplay/scenes",
+    # Roleplay courses endpoints (for testing)
+    "/api/roleplay/courses",
 )
 
 # Exact auth paths that are public (login/register/status check).

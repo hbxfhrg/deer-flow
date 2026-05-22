@@ -1,8 +1,9 @@
-import { ArrowLeft, RefreshCw, HelpCircle, Settings, LogOut } from 'lucide-react';
+import { ArrowLeft, HelpCircle, Settings, LogOut } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { MessageBubble } from '@/components/MessageBubble';
 import { EvaluationCard } from '@/components/EvaluationCard';
+import { ReportPanel } from '@/components/ReportPanel';
 import { ChatInput } from '@/components/ChatInput';
 import { useRoleplay } from '@/hooks/useRoleplay';
 import api from '../api';
@@ -28,11 +29,15 @@ export function ChatPage() {
     isLoading,
     isTyping,
     evaluation,
-    evaluationStatus,
+    report,
+    isComplete,
+    currentRound,
+    totalRounds,
     initConversation,
     sendMessage,
+    endPractice,
     messagesEndRef,
-  } = useRoleplay();
+  } = useRoleplay(courseId ? Number(courseId) : null);
 
   return (
     <div className="h-full flex flex-col bg-gray-50">
@@ -87,7 +92,11 @@ export function ChatPage() {
               )}
 
               <div className="w-20 h-20 bg-primary-100 rounded-full flex items-center justify-center mb-4">
-                <RefreshCw className="w-8 h-8 text-primary-500" />
+                <div className="w-8 h-8 text-primary-500">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  </svg>
+                </div>
               </div>
               <h2 className="text-xl font-semibold text-gray-800 mb-2">准备开始对练</h2>
               <p className="text-sm text-gray-500 text-center mb-6">
@@ -130,25 +139,59 @@ export function ChatPage() {
             </div>
           )}
 
-          {/* 输入框 */}
-          {messages.length > 0 && (
+          {/* 输入框 / 结束面板 */}
+          {messages.length > 0 && !isComplete && (
             <ChatInput onSend={sendMessage} disabled={isLoading} />
+          )}
+          {messages.length > 0 && !isComplete && (
+            <div className="bg-gray-50 border-t border-gray-100 px-4 py-2 flex items-center justify-between">
+              <span className="text-xs text-gray-400">
+                第 {currentRound} / {totalRounds} 轮
+              </span>
+              <button
+                onClick={endPractice}
+                disabled={isLoading}
+                className="px-4 py-1.5 text-xs text-red-500 border border-red-200 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
+              >
+                结束对练
+              </button>
+            </div>
+          )}
+          {isComplete && (
+            <div className="bg-green-50 border-t border-green-100 px-4 py-3 text-center">
+              <span className="text-sm text-green-600 font-medium">✓ 对练已完成</span>
+            </div>
           )}
         </div>
 
-        {/* 评估面板（右侧） */}
-        {messages.length > 0 && (
-          <div className="w-72 bg-gray-50 border-l border-gray-100 p-4 overflow-y-auto hidden lg:block">
-            <div className="sticky top-0 bg-gray-50 pb-2">
-              <h2 className="font-semibold text-gray-800 mb-2">评估面板</h2>
+        {/* 右侧面板 */}
+        <div className="w-80 bg-white border-l border-gray-100 p-4 overflow-y-auto hidden lg:block">
+          {isComplete && report ? (
+            <ReportPanel report={report} />
+          ) : evaluation && !isComplete ? (
+            <EvaluationCard evaluation={evaluation} status="completed" />
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full text-gray-400">
+              <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-3">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </div>
+              <p className="text-xs">开始对话后将显示评估</p>
             </div>
-            <EvaluationCard evaluation={evaluation ?? {}} status={evaluationStatus ?? 'not_found'} />
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      {/* 移动端评估面板 */}
-      {messages.length > 0 && evaluation && (
+      {/* 移动端：已完成的报告 */}
+      {isComplete && report && (
+        <div className="lg:hidden bg-white border-t border-gray-100 p-4 overflow-y-auto max-h-[50vh]">
+          <ReportPanel report={report} />
+        </div>
+      )}
+
+      {/* 移动端：过程评估 */}
+      {evaluation && !isComplete && (
         <div className="lg:hidden bg-white border-t border-gray-100 p-4">
           <EvaluationCard evaluation={evaluation} status="completed" />
         </div>

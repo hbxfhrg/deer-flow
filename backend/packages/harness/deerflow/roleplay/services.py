@@ -257,22 +257,22 @@ class EvaluationService:
 
 class PracticeRecordService:
     @staticmethod
-    async def get_practice_records(user_id: str = None, scene_id: str = None):
+    async def get_practice_records(user_name: str = None, course_id: int = None):
         async with get_db() as session:
             query = select(PracticeRecordRow)
-            if user_id:
-                query = query.where(PracticeRecordRow.user_id == user_id)
-            if scene_id:
-                query = query.where(PracticeRecordRow.scene_id == scene_id)
+            if user_name:
+                query = query.where(PracticeRecordRow.user_name == user_name)
+            if course_id:
+                query = query.where(PracticeRecordRow.course_id == course_id)
             query = query.order_by(desc(PracticeRecordRow.start_time))
             result = await session.execute(query)
             return result.scalars().all()
 
     @staticmethod
-    async def get_practice_record(record_id: str):
+    async def get_practice_record(record_id: int):
         async with get_db() as session:
             result = await session.execute(
-                select(PracticeRecordRow).where(PracticeRecordRow.id == record_id)
+                select(PracticeRecordRow).where(PracticeRecordRow.record_id == record_id)
             )
             return result.scalar_one_or_none()
 
@@ -280,14 +280,9 @@ class PracticeRecordService:
     async def create_practice_record(data: dict):
         async with get_db() as session:
             record = PracticeRecordRow(
-                id=data.get("id") or str(uuid4()),
-                thread_id=data["thread_id"],
-                scene_id=data["scene_id"],
-                user_id=data["user_id"],
+                course_id=data["course_id"],
+                user_name=data["user_name"],
                 start_time=datetime.now(UTC),
-                total_rounds=data.get("total_rounds", 5),
-                completed_rounds=0,
-                status="in_progress"
             )
             session.add(record)
             await session.commit()
@@ -295,47 +290,100 @@ class PracticeRecordService:
             return record
 
     @staticmethod
-    async def complete_practice_record(record_id: str, data: dict):
+    async def complete_practice_record(record_id: int, data: dict):
         async with get_db() as session:
             result = await session.execute(
-                select(PracticeRecordRow).where(PracticeRecordRow.id == record_id)
+                select(PracticeRecordRow).where(PracticeRecordRow.record_id == record_id)
             )
             record = result.scalar_one_or_none()
             if record:
                 record.end_time = datetime.now(UTC)
-                record.completed_rounds = data.get("completed_rounds", record.completed_rounds)
-                record.avg_score = data.get("avg_score", 0)
-                record.status = "completed"
-                record.metadata_json = data.get("metadata_json", {})
+                if "dialog_rounds" in data:
+                    record.dialog_rounds = data["dialog_rounds"]
+                if "total_score" in data:
+                    record.total_score = data["total_score"]
+                if "report_data" in data:
+                    record.report_data = data["report_data"]
+                if "duration" in data:
+                    record.duration = data["duration"]
                 await session.commit()
                 await session.refresh(record)
             return record
 
+class DialogDetailService:
+    @staticmethod
+    async def create_dialog(data: dict):
+        """创建一条对话记录"""
+        from deerflow.roleplay.models import DialogDetailRow
+        async with get_db() as session:
+            detail = DialogDetailRow(
+                record_id=data["record_id"],
+                speaker=data["speaker"],
+                content_type=data.get("content_type", 1),
+                content=data["content"],
+                score=data.get("score"),
+                feedback=data.get("feedback"),
+                create_time=datetime.now(UTC),
+            )
+            session.add(detail)
+            await session.commit()
+            await session.refresh(detail)
+            return detail
+
+    @staticmethod
+    async def update_dialog_score(dialog_id: int, score: float, feedback: str):
+        """更新对话记录的评分和反馈"""
+        from deerflow.roleplay.models import DialogDetailRow
+        async with get_db() as session:
+            result = await session.execute(
+                select(DialogDetailRow).where(DialogDetailRow.dialog_id == dialog_id)
+            )
+            detail = result.scalar_one_or_none()
+            if detail:
+                detail.score = score
+                detail.feedback = feedback
+                await session.commit()
+            return detail
+
+    @staticmethod
+    async def get_dialogs_by_record(record_id: int) -> list:
+        """获取某次对练的所有对话记录，按时间排序"""
+        from deerflow.roleplay.models import DialogDetailRow
+        async with get_db() as session:
+            result = await session.execute(
+                select(DialogDetailRow)
+                .where(DialogDetailRow.record_id == record_id)
+                .order_by(DialogDetailRow.create_time)
+            )
+            return result.scalars().all()
+
 class StatisticsService:
     @staticmethod
-    async def get_user_stats(user_id: str):
+    async def get_user_stats(user_name: str):
         sf = get_session_factory()
         async with sf() as session:
             record_result = await session.execute(
                 select(
-                    func.count(PracticeRecordRow.id).label("total_practices"),
-                    func.sum(func.julianday(PracticeRecordRow.end_time) - func.julianday(PracticeRecordRow.start_time)).label("total_duration"),
-                    func.avg(PracticeRecordRow.avg_score).label("avg_score")
-                ).where(PracticeRecordRow.user_id == user_id)
+                    func.count(PracticeRecordRow.record_id).label("total_practices"),
+                    func.sum(
+                        func.strftime('%s', PracticeRecordRow.end_time) - func.strftime('%s', PracticeRecordRow.start_time)
+                    ).label("total_duration"),
+                    func.avg(PracticeRecordRow.total_score).label("avg_score")
+                ).where(PracticeRecordRow.user_name == user_name)
             )
             return record_result.first()
 
     @staticmethod
-    async def get_scene_stats(scene_id: str = None):
+    async def get_scene_stats(course_id: int = None):
         sf = get_session_factory()
         async with sf() as session:
             query = select(
-                PracticeRecordRow.scene_id,
-                func.count(PracticeRecordRow.id).label("practice_count"),
-                func.avg(PracticeRecordRow.avg_score).label("avg_score")
-            ).group_by(PracticeRecordRow.scene_id)
-            if scene_id:
-                query = query.where(PracticeRecordRow.scene_id == scene_id)
+                PracticeRecordRow.course_id,
+                func.count(PracticeRecordRow.record_id).label("practice_count"),
+                func.avg(PracticeRecordRow.total_score).label("avg_score")
+            ).group_by(PracticeRecordRow.course_id)
+            if course_id:
+                query = query.where(PracticeRecordRow.course_id == course_id)
             result = await session.execute(query)
             return result.all()
 
@@ -344,11 +392,11 @@ class StatisticsService:
         sf = get_session_factory()
         async with sf() as session:
             query = select(
-                PracticeRecordRow.user_id,
-                func.count(PracticeRecordRow.id).label("practice_count"),
-                func.avg(PracticeRecordRow.avg_score).label("avg_score")
-            ).group_by(PracticeRecordRow.user_id)\
-             .order_by(desc(func.avg(PracticeRecordRow.avg_score)))\
+                PracticeRecordRow.user_name,
+                func.count(PracticeRecordRow.record_id).label("practice_count"),
+                func.avg(PracticeRecordRow.total_score).label("avg_score")
+            ).group_by(PracticeRecordRow.user_name)\
+             .order_by(desc(func.avg(PracticeRecordRow.total_score)))\
              .limit(limit)
             result = await session.execute(query)
             return result.all()

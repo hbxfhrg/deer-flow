@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from sqlalchemy import JSON, DateTime, String, Integer, Text, Boolean, BigInteger
+from sqlalchemy import JSON, DateTime, String, Integer, Text, Boolean, BigInteger, Float
 from sqlalchemy.orm import Mapped, mapped_column
 
 from deerflow.roleplay import RoleplayBase
@@ -73,15 +73,46 @@ class EvaluationRow(RoleplayBase):
 
 class PracticeRecordRow(RoleplayBase):
     __tablename__ = "pract_record"
-    
-    id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    thread_id: Mapped[str] = mapped_column(String(64), index=True)
-    scene_id: Mapped[str] = mapped_column(String(64))
-    user_id: Mapped[str] = mapped_column(String(64))
+
+    record_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    course_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    user_name: Mapped[str] = mapped_column(String(50))
+    total_score: Mapped[float] = mapped_column(Float, nullable=True)
+    duration: Mapped[int] = mapped_column(Integer, nullable=True)  # 对练总时长（秒）
+    dialog_rounds: Mapped[int] = mapped_column(Integer, nullable=True)  # 实际对话轮数
+    report_data: Mapped[dict] = mapped_column(JSON, nullable=True)
     start_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     end_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    total_rounds: Mapped[int] = mapped_column(Integer)
-    completed_rounds: Mapped[int] = mapped_column(Integer)
-    avg_score: Mapped[float] = mapped_column(Integer)
-    status: Mapped[str] = mapped_column(String(20), default="completed")
-    metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
+
+class DialogDetailRow(RoleplayBase):
+    __tablename__ = "pract_dialog_detail"
+
+    dialog_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    record_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)  # 关联 pract_record.record_id (int)
+    speaker: Mapped[int] = mapped_column(Integer, nullable=False)  # 1: 学员, 2: AI/客户
+    content_type: Mapped[int] = mapped_column(Integer, nullable=False, default=1)  # 1: 文本
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    score: Mapped[float] = mapped_column(Float, nullable=True)
+    feedback: Mapped[str] = mapped_column(Text, nullable=True)
+    create_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class CourseRecordRow(RoleplayBase):
+    __tablename__ = "pract_course_record"
+    
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    course_id: Mapped[int] = mapped_column(Integer)
+    scene_id: Mapped[int] = mapped_column(Integer)
+    start_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    end_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    total_score: Mapped[int] = mapped_column(Integer, nullable=True)
+    user_name: Mapped[str] = mapped_column(String(50))
+    nick_name: Mapped[str] = mapped_column(String(200), nullable=True)
+    summary: Mapped[str] = mapped_column(Text, nullable=True)
+    conversation_id: Mapped[str] = mapped_column(String(100), nullable=True)
+    courese_name: Mapped[str] = mapped_column(String(255), nullable=True)  # 注意：字段名拼写错误，与数据库一致
+    scene_name: Mapped[str] = mapped_column(String(255), nullable=True)
+    course_type: Mapped[int] = mapped_column(Integer, nullable=True)
+    accord_finish: Mapped[int] = mapped_column(Integer, nullable=True)
+    last_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    practice_mode: Mapped[str] = mapped_column(String(20), nullable=True)

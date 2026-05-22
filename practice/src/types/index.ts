@@ -83,6 +83,45 @@ export interface Course {
   createdAt?: string;
 }
 
+// ── 自由式对练类型 ──
+
+export interface EvaluationReport {
+  total_score: number;
+  dimension_scores: Record<string, number>;
+  strengths: string[];
+  improvements: string[];
+  summary: string;
+}
+
+export interface PracticeStartResponse {
+  recordId: number;
+  courseName: string;
+  sceneName: string;
+  sceneDescription: string;
+  totalRounds: number;
+  customerMessage: string;
+  round: number;
+}
+
+export interface PracticeTurnResponse {
+  recordId: number;
+  round: number;
+  evaluation: {
+    roundScore: number;
+    dimensionScores: Record<string, number>;
+    feedback: string;
+  };
+  customerMessage: string;
+  isComplete: boolean;
+  report?: EvaluationReport;
+}
+
+export interface PracticeEndResponse {
+  recordId: number;
+  totalRounds: number;
+  report: EvaluationReport;
+}
+
 // 认证相关类型
 export interface UserInfo {
   user_id: number;

@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from deerflow.roleplay import get_db
 from deerflow.roleplay.services import SceneService, EvaluationService, PracticeRecordService, StatisticsService, CourseService
+from deerflow.roleplay.practice_service import PracticeService
 from deerflow.roleplay.auth_service import AuthService
 
 router = APIRouter(prefix="/api/roleplay", tags=["roleplay"])
@@ -79,9 +80,10 @@ class PracticeRecordCreate(BaseModel):
     total_rounds: Optional[int] = 5
 
 class PracticeRecordComplete(BaseModel):
-    completed_rounds: int
-    avg_score: int
-    metadata_json: Optional[Dict] = {}
+    dialog_rounds: Optional[int] = None
+    total_score: Optional[float] = None
+    report_data: Optional[Dict] = None
+    duration: Optional[int] = None
 
 @router.get("/scenes", summary="获取场景列表")
 async def get_scenes():
@@ -420,51 +422,55 @@ async def update_evaluation(eval_id: str, evaluation: EvaluationUpdate):
     return {"message": "Evaluation updated successfully"}
 
 @router.get("/practice-records", summary="获取练习记录列表")
-async def get_practice_records(user_id: Optional[str] = None, scene_id: Optional[str] = None):
-    records = await PracticeRecordService.get_practice_records(user_id, scene_id)
+async def get_practice_records(user_name: Optional[str] = None, course_id: Optional[int] = None):
+    records = await PracticeRecordService.get_practice_records(user_name, course_id)
     return {"records": [
         {
-            "id": r.id,
-            "thread_id": r.thread_id,
-            "scene_id": r.scene_id,
-            "user_id": r.user_id,
-            "start_time": r.start_time.isoformat() if r.start_time else None,
-            "end_time": r.end_time.isoformat() if r.end_time else None,
-            "total_rounds": r.total_rounds,
-            "completed_rounds": r.completed_rounds,
-            "avg_score": r.avg_score,
-            "status": r.status,
-            "metadata_json": r.metadata_json
+            "recordId": r.record_id,
+            "courseId": r.course_id,
+            "userName": r.user_name,
+            "totalScore": r.total_score,
+            "duration": r.duration,
+            "dialogRounds": r.dialog_rounds,
+            "startTime": r.start_time.isoformat() if r.start_time else None,
+            "endTime": r.end_time.isoformat() if r.end_time else None,
         } for r in records
     ]}
 
 @router.get("/practice-records/{record_id}", summary="获取练习记录详情")
-async def get_practice_record(record_id: str):
+async def get_practice_record(record_id: int):
     record = await PracticeRecordService.get_practice_record(record_id)
     if not record:
         raise HTTPException(status_code=404, detail="Practice record not found")
     return {
-        "id": record.id,
-        "thread_id": record.thread_id,
-        "scene_id": record.scene_id,
-        "user_id": record.user_id,
-        "start_time": record.start_time.isoformat() if record.start_time else None,
-        "end_time": record.end_time.isoformat() if record.end_time else None,
-        "total_rounds": record.total_rounds,
-        "completed_rounds": record.completed_rounds,
-        "avg_score": record.avg_score,
-        "status": record.status,
-        "metadata_json": record.metadata_json
+        "recordId": record.record_id,
+        "courseId": record.course_id,
+        "userName": record.user_name,
+        "totalScore": record.total_score,
+        "duration": record.duration,
+        "dialogRounds": record.dialog_rounds,
+        "reportData": record.report_data,
+        "startTime": record.start_time.isoformat() if record.start_time else None,
+        "endTime": record.end_time.isoformat() if record.end_time else None,
     }
 
+class PracticeRecordCreate(BaseModel):
+    course_id: int = Field(alias="courseId")
+    user_name: str = Field(alias="userName")
+
+    model_config = {"populate_by_name": True}
+
 @router.post("/practice-records", summary="创建练习记录")
-async def create_practice_record(record: PracticeRecordCreate):
-    result = await PracticeRecordService.create_practice_record(record.dict())
-    return {"message": "Practice record created successfully", "record_id": result.id}
+async def create_practice_record(req: PracticeRecordCreate):
+    result = await PracticeRecordService.create_practice_record({
+        "course_id": req.course_id,
+        "user_name": req.user_name,
+    })
+    return {"message": "Practice record created successfully", "recordId": result.record_id}
 
 @router.post("/practice-records/{record_id}/complete", summary="完成练习记录")
-async def complete_practice_record(record_id: str, data: PracticeRecordComplete):
-    result = await PracticeRecordService.complete_practice_record(record_id, data.dict())
+async def complete_practice_record(record_id: int, data: PracticeRecordComplete):
+    result = await PracticeRecordService.complete_practice_record(record_id, data.model_dump())
     if not result:
         raise HTTPException(status_code=404, detail="Practice record not found")
     return {"message": "Practice record completed successfully"}
@@ -532,3 +538,63 @@ async def get_current_user(user_id: int):
     if not result["success"]:
         raise HTTPException(status_code=404, detail=result["message"])
     return result
+
+# ==================== 自由式对练 APIs ====================
+
+class PracticeStartRequest(BaseModel):
+    course_id: int = Field(alias="courseId")
+    user_name: str = Field(alias="userName")
+
+    model_config = {"populate_by_name": True}
+
+class PracticeTurnRequest(BaseModel):
+    record_id: int = Field(alias="recordId")
+    message: str
+
+    model_config = {"populate_by_name": True}
+
+class PracticeEndRequest(BaseModel):
+    record_id: int = Field(alias="recordId")
+
+    model_config = {"populate_by_name": True}
+
+@router.post("/practice/start", summary="开始对练")
+async def practice_start(req: PracticeStartRequest):
+    """加载场景 → 创建记录 → LLM生成开场白"""
+    try:
+        result = await PracticeService.start(req.course_id, req.user_name)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/practice/turn", summary="对练对话轮次")
+async def practice_turn(req: PracticeTurnRequest):
+    """存用户话术 → LLM评估 → LLM生成下一条客户回复"""
+    try:
+        result = await PracticeService.turn(req.record_id, req.message)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/practice/end", summary="结束对练")
+async def practice_end(req: PracticeEndRequest):
+    """手动结束 → LLM生成最终报告"""
+    try:
+        result = await PracticeService.end(req.record_id)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/practice/{record_id}/history", summary="获取对练历史")
+async def practice_history(record_id: int):
+    try:
+        return await PracticeService.get_practice_history(record_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@router.get("/practice/{record_id}/report", summary="获取评估报告")
+async def practice_report(record_id: int):
+    try:
+        return await PracticeService.get_report(record_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
