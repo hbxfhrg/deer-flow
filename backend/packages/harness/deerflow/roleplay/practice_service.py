@@ -9,14 +9,20 @@
 import json
 import re
 import random
-from datetime import UTC, datetime
+import logging
+from datetime import datetime
 
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+
+# 导入时区工具（从配置读取时区）
+from deerflow.roleplay.timezone_utils import now_local
 
 from deerflow.models import create_chat_model
 from deerflow.roleplay import get_db
 from deerflow.roleplay.models import SceneRow, CourseRow, PracticeRecordRow, DialogDetailRow, CourseRecordRow
 from deerflow.roleplay.services import SceneService, CourseService, PracticeRecordService, DialogDetailService
+
+logger = logging.getLogger(__name__)
 
 
 # ── LLM 调用工具函数 ─────────────────────────────────────────
@@ -300,7 +306,7 @@ async def _llm_invoke_json(system_prompt: str, user_prompt: str, model_name: str
     raw = response.content
     if isinstance(raw, list):
         raw = " ".join(str(c) for c in raw)
-    return await _parse_json_with_retry(raw, model_name, max_retries=3)
+    return await _parse_json_with_retry(raw, model_name, max_rounds=3)
 
 
 async def _llm_invoke_text(system_prompt: str, user_prompt: str, model_name: str | None = None) -> str:
@@ -716,9 +722,10 @@ class PracticeService:
         course, scene = await _load_scene_by_course(course_id)
         
         # 总轮次计算逻辑：
-        # - 自由式对练（practice_mode="text"）：取exam_categories字段中逗号分隔的类别数量
+        # - 自由式对练（practice_mode="text"或"自由式"）：取exam_categories字段中逗号分隔的类别数量
         # - 其他模式：使用dialog_round_limit配置，默认5轮
-        if scene.practice_mode == "text" and scene.exam_categories:
+        logger.info(f"【总轮次计算】practice_mode={repr(scene.practice_mode)}, exam_categories={repr(scene.exam_categories)}, dialog_round_limit={scene.dialog_round_limit}")
+        if (scene.practice_mode == "text" or scene.practice_mode == "自由式") and scene.exam_categories:
             # 同时支持中文逗号和英文逗号分割
             categories = scene.exam_categories.replace("，", ",").split(",")
             total_rounds = len([cat.strip() for cat in categories if cat.strip()])
@@ -732,7 +739,7 @@ class PracticeService:
             course_record = CourseRecordRow(
                 course_id=course_id,
                 scene_id=scene.scene_id,
-                start_time=datetime.now(UTC),
+                start_time=now_local(),
                 user_name=user_name,
                 scene_name=scene.scene_name,
                 course_type=course.course_type,
@@ -794,9 +801,10 @@ class PracticeService:
         record, course, scene = await _load_scene_by_record(record_id)
 
         # 总轮次计算逻辑：
-        # - 自由式对练（practice_mode="text"）：取exam_categories字段中逗号分隔的类别数量
+        # - 自由式对练（practice_mode="text"或"自由式"）：取exam_categories字段中逗号分隔的类别数量
         # - 其他模式：使用dialog_round_limit配置，默认5轮
-        if scene.practice_mode == "text" and scene.exam_categories:
+        logger.info(f"【总轮次计算】practice_mode={repr(scene.practice_mode)}, exam_categories={repr(scene.exam_categories)}, dialog_round_limit={scene.dialog_round_limit}")
+        if (scene.practice_mode == "text" or scene.practice_mode == "自由式") and scene.exam_categories:
             # 同时支持中文逗号和英文逗号分割
             categories = scene.exam_categories.replace("，", ",").split(",")
             total_rounds = len([cat.strip() for cat in categories if cat.strip()])
@@ -851,7 +859,7 @@ class PracticeService:
             # 自动结束：生成最终报告
             report = await _generate_report(scene, all_dialogs)
             total_score = _calc_total_score(report)
-            end_time = datetime.now(UTC)
+            end_time = now_local()
 
             async with get_db() as session:
                 from sqlalchemy import update as sa_update
@@ -921,13 +929,14 @@ class PracticeService:
             await session.execute(
                 sa_update(CourseRecordRow)
                 .where(CourseRecordRow.id == record_id)
-                .values(last_time=datetime.now(UTC))
+                .values(last_time=now_local())
             )
             await session.commit()
 
         return {
             "recordId": record_id,
             "round": current_round,
+            "totalRounds": total_rounds,
             "evaluation": {
                 "roundScore": evaluation.get("round_score", 0),
                 "dimensionScores": evaluation.get("dimension_scores", {}),
@@ -969,7 +978,7 @@ class PracticeService:
         # LLM 生成最终报告
         report = await _generate_report(scene, all_dialogs)
         total_score = _calc_total_score(report)
-        end_time = datetime.now(UTC)
+        end_time = now_local()
 
         async with get_db() as session:
             from sqlalchemy import update as sa_update

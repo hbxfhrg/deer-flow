@@ -49,6 +49,12 @@ class CircuitBreakerConfig(BaseModel):
     recovery_timeout_sec: int = Field(default=60, description="Time in seconds before attempting to recover the circuit")
 
 
+class TimezoneConfig(BaseModel):
+    """Configuration for timezone settings."""
+
+    timezone: str = Field(default="Asia/Shanghai", description="Timezone for the application (e.g., Asia/Shanghai, UTC, America/New_York)")
+
+
 def _legacy_config_candidates() -> tuple[Path, ...]:
     """Return source-tree config.yaml locations for monorepo compatibility."""
     backend_dir = Path(__file__).resolve().parents[4]
@@ -102,6 +108,7 @@ class AppConfig(BaseModel):
     guardrails: GuardrailsConfig = Field(default_factory=GuardrailsConfig, description="Guardrail middleware configuration")
     circuit_breaker: CircuitBreakerConfig = Field(default_factory=CircuitBreakerConfig, description="LLM circuit breaker configuration")
     loop_detection: LoopDetectionConfig = Field(default_factory=LoopDetectionConfig, description="Loop detection middleware configuration")
+    timezone: TimezoneConfig = Field(default_factory=TimezoneConfig, description="Timezone configuration")
     model_config = ConfigDict(extra="allow")
     database: DatabaseConfig = Field(default_factory=DatabaseConfig, description="Unified database backend configuration")
     run_events: RunEventsConfig = Field(default_factory=RunEventsConfig, description="Run event storage configuration")

@@ -141,7 +141,7 @@ export function CoursePage() {
         startTime: form.startTime || undefined,
         endTime: form.endTime || undefined,
         status: form.status,
-        create_by: currentUser ? currentUser.username : '',
+        create_by: currentUser ? currentUser.user_name : '',
       } as any);
 
       const updated = await api.courses.list();

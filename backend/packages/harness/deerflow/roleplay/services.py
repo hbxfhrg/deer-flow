@@ -1,11 +1,14 @@
-from datetime import datetime, UTC
+from datetime import datetime
 from uuid import uuid4
 from sqlalchemy import select, desc, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 import re
 
+# 导入时区工具（从配置读取时区）
+from deerflow.roleplay.timezone_utils import now_local
+
 from deerflow.roleplay import get_db, get_session_factory
-from deerflow.roleplay.models import SceneRow, EvaluationRow, PracticeRecordRow, CourseRow
+from deerflow.roleplay.models import SceneRow, EvaluationRow, PracticeRecordRow, CourseRow, CourseRecordRow
 
 # 驼峰命名转下划线命名（通用函数）
 def camel_to_snake(name: str) -> str:
@@ -50,8 +53,8 @@ class SceneService:
                 end_speech=snake_case_data.get("end_speech"),
                 status=snake_case_data.get("enabled", True) if isinstance(snake_case_data.get("enabled", True), int) else (1 if snake_case_data.get("enabled", True) else 0),
                 create_by=snake_case_data.get("create_by", "system"),
-                create_time=datetime.now(UTC),
-                update_time=datetime.now(UTC),
+                create_time=now_local(),
+                update_time=now_local(),
                 
                 # 模型新增的字段
                 model_name=snake_case_data.get("model_name"),
@@ -101,7 +104,7 @@ class SceneService:
                     elif hasattr(scene, key):
                         setattr(scene, key, value)
                 
-                scene.update_time = datetime.now(UTC)
+                scene.update_time = now_local()
                 await session.commit()
                 await session.refresh(scene)
             return scene
@@ -115,7 +118,7 @@ class SceneService:
             scene = result.scalar_one_or_none()
             if scene:
                 scene.status = 0
-                scene.update_time = datetime.now(UTC)
+                scene.update_time = now_local()
                 await session.commit()
                 return True
             return False
@@ -156,7 +159,7 @@ class CourseService:
                 end_time=snake_case_data.get("end_time"),
                 status=snake_case_data.get("status", 0),
                 create_by=snake_case_data.get("create_by", ''),
-                create_time=datetime.now(UTC),
+                create_time=now_local(),
             )
             session.add(course)
             await session.commit()
@@ -233,7 +236,7 @@ class EvaluationService:
                 improvements=data.get("improvements", {}),
                 summary=data.get("summary", ""),
                 status=data.get("status", "pending"),
-                created_at=datetime.now(UTC)
+                created_at=now_local()
             )
             session.add(eval_row)
             await session.commit()
@@ -265,45 +268,43 @@ class PracticeRecordService:
         status: str = None
     ):
         async with get_db() as session:
+            # 使用 CourseRecordRow (pract_course_record) 作为主表
             query = (
                 select(
-                    PracticeRecordRow,
-                    CourseRow.course_name,
-                    SceneRow.scene_name
+                    CourseRecordRow,
+                    CourseRow.course_name
                 )
-                .outerjoin(CourseRow, PracticeRecordRow.course_id == CourseRow.course_id)
-                .outerjoin(SceneRow, CourseRow.scene_id == SceneRow.scene_id)
+                .outerjoin(CourseRow, CourseRecordRow.course_id == CourseRow.course_id)
             )
             if user_name:
-                query = query.where(PracticeRecordRow.user_name == user_name)
+                query = query.where(CourseRecordRow.user_name == user_name)
             if course_id:
-                query = query.where(PracticeRecordRow.course_id == course_id)
+                query = query.where(CourseRecordRow.course_id == course_id)
             if start_time:
-                query = query.where(PracticeRecordRow.start_time >= start_time)
+                query = query.where(CourseRecordRow.start_time >= start_time)
             if end_time:
-                query = query.where(PracticeRecordRow.start_time <= end_time)
+                query = query.where(CourseRecordRow.start_time <= end_time)
             if status == "completed":
-                query = query.where(PracticeRecordRow.end_time.isnot(None))
+                query = query.where(CourseRecordRow.end_time.isnot(None))
             elif status == "in_progress":
-                query = query.where(PracticeRecordRow.end_time.is_(None))
-            query = query.order_by(desc(PracticeRecordRow.start_time))
+                query = query.where(CourseRecordRow.end_time.is_(None))
+            query = query.order_by(desc(CourseRecordRow.start_time))
             result = await session.execute(query)
             
             records = []
             for row in result.all():
                 record = row[0]
                 record_dict = {
-                    "record_id": record.record_id,
+                    "record_id": record.id,
                     "course_id": record.course_id,
                     "user_name": record.user_name,
                     "total_score": record.total_score,
-                    "duration": record.duration,
-                    "dialog_rounds": record.dialog_rounds,
-                    "report_data": record.report_data,
                     "start_time": record.start_time.isoformat() if record.start_time else None,
                     "end_time": record.end_time.isoformat() if record.end_time else None,
-                    "course_name": row[1] or "未知课程",
-                    "scene_name": row[2] or "未知场景",
+                    "course_name": str(row[1]).strip() if row[1] and str(row[1]).strip() else "未知课程",
+                    "scene_name": str(record.scene_name).strip() if record.scene_name and str(record.scene_name).strip() else "未知场景",
+                    "summary": record.summary,
+                    "practice_mode": record.practice_mode,
                 }
                 records.append(record_dict)
             return records
@@ -322,7 +323,7 @@ class PracticeRecordService:
             record = PracticeRecordRow(
                 course_id=data["course_id"],
                 user_name=data["user_name"],
-                start_time=datetime.now(UTC),
+                start_time=now_local(),
             )
             session.add(record)
             await session.commit()
@@ -337,7 +338,7 @@ class PracticeRecordService:
             )
             record = result.scalar_one_or_none()
             if record:
-                record.end_time = datetime.now(UTC)
+                record.end_time = now_local()
                 if "dialog_rounds" in data:
                     record.dialog_rounds = data["dialog_rounds"]
                 if "total_score" in data:
@@ -363,7 +364,7 @@ class DialogDetailService:
                 content=data["content"],
                 score=data.get("score"),
                 feedback=data.get("feedback"),
-                create_time=datetime.now(UTC),
+                create_time=now_local(),
             )
             session.add(detail)
             await session.commit()

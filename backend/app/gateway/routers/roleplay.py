@@ -436,12 +436,12 @@ async def get_practice_records(
             "courseId": r["course_id"],
             "userName": r["user_name"],
             "totalScore": r["total_score"],
-            "duration": r["duration"],
-            "dialogRounds": r["dialog_rounds"],
             "courseName": r["course_name"],
             "sceneName": r["scene_name"],
             "startTime": r["start_time"],
             "endTime": r["end_time"],
+            "summary": r.get("summary"),
+            "practiceMode": r.get("practice_mode"),
         } for r in records
     ]}
 

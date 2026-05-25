@@ -31,6 +31,8 @@ _PUBLIC_PATH_PREFIXES: tuple[str, ...] = (
     "/api/roleplay/auth/user",
     # Roleplay practice endpoints (free practice mode)
     "/api/roleplay/practice/",
+    # Roleplay practice records endpoints
+    "/api/roleplay/practice-records",
     # Roleplay scenes endpoints (for testing)
     "/api/roleplay/scenes",
     # Roleplay courses endpoints (for testing)

@@ -119,6 +119,7 @@ export interface PracticeStartResponse {
 export interface PracticeTurnResponse {
   recordId: number;
   round: number;
+  totalRounds: number;
   evaluation: {
     roundScore: number;
     dimensionScores: Record<string, number>;

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Save, Plus, X, ChevronRight, Sparkles, Check, Settings, Pencil } from 'lucide-react';
 import api from '../api';
+import type { Scene } from '../types';
 
 // 使用 types/index.ts 中定义的 Scene 接口，不再本地重复定义
 // 字段与后端 roleplay.py get_scenes() 返回值保持一致：
@@ -58,28 +59,28 @@ export function ScenePage() {
   const [isExtracting, setIsExtracting] = useState(false);
   const [summaryPrompt, setSummaryPrompt] = useState(defaultPrompt);
   const [editingScene, setEditingScene] = useState<Scene | null>(null);
-  // 示例文本
-  const defaultKnowledgeBase = `汽车销售基础知识包括以下几个方面：
-
-产品知识：
-- 了解车型特点和配置参数
-- 掌握竞品对比信息
-- 熟悉车辆性能数据
-
-客户需求分析：
-- 了解客户的预算范围
-- 分析客户的使用用途
-- 识别客户的偏好需求
-
-销售技巧：
-- 有效的沟通技巧
-- 专业的谈判技巧
-- 及时的跟进技巧
-
-售后服务：
-- 提供优质的售后服务
-- 建立长期客户关系
-- 处理客户投诉和反馈`;
+  // 示例文本（暂时注释，未使用）
+  // const defaultKnowledgeBase = `汽车销售基础知识包括以下几个方面：
+  // 
+  // 产品知识：
+  // - 了解车型特点和配置参数
+  // - 掌握竞品对比信息
+  // - 熟悉车辆性能数据
+  // 
+  // 客户需求分析：
+  // - 了解客户的预算范围
+  // - 分析客户的使用用途
+  // - 识别客户的偏好需求
+  // 
+  // 销售技巧：
+  // - 有效的沟通技巧
+  // - 专业的谈判技巧
+  // - 及时的跟进技巧
+  // 
+  // 售后服务：
+  // - 提供优质的售后服务
+  // - 建立长期客户关系
+  // - 处理客户投诉和反馈`;
 
   const [newScene, setNewScene] = useState({
     scene_name: '',
@@ -138,13 +139,13 @@ export function ScenePage() {
 
   // 编辑场景时提取摘要
   const extractSummaryForEdit = async () => {
-    if (!editingScene || !editingScene.knowledgeBase.trim()) return;
+    if (!editingScene || !editingScene.knowledgeBase?.trim()) return;
     
     setIsExtracting(true);
     
     try {
       const response = await api.scenes.extractSummary({
-        knowledgeBase: editingScene.knowledgeBase,
+        knowledgeBase: editingScene.knowledgeBase || '',
         promptTemplate: summaryPrompt,
         modelName: editingScene.modelName,
       });
@@ -239,7 +240,7 @@ export function ScenePage() {
         }
         return null;
       })
-      .filter((item): item is { label: string; content: string } => item !== null && item.label);
+      .filter((item): item is { label: string; content: string } => item !== null && !!item.label);
   };
 
   // 解析 summaryText 为分类和要点（兼容旧调用方）
@@ -273,7 +274,7 @@ export function ScenePage() {
         
         setNewScene(prev => ({
           ...prev,
-          summaryText: response.summaryText,
+          summaryText: response.summaryText || '',
           examCategories: '', // 清空之前选择的考核分类
           scoringRules: autoScoringRules,
         }));
@@ -344,7 +345,7 @@ export function ScenePage() {
     
     try {
       const currentUser = api.auth.getCurrentUser();
-      const response = await api.scenes.create({
+      await api.scenes.create({
         scene_name: newScene.scene_name,
         scene_description: newScene.scene_description,
         enabled: true,
@@ -846,7 +847,7 @@ export function ScenePage() {
                 <div className="flex gap-2 mt-2">
                   <button
                     onClick={extractSummaryForEdit}
-                    disabled={!editingScene.knowledgeBase.trim() || isExtracting}
+                    disabled={!editingScene.knowledgeBase?.trim() || isExtracting}
                     className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Sparkles className={`w-4 h-4 ${isExtracting ? 'animate-spin' : ''}`} />

@@ -1,13 +1,14 @@
 """Authentication service for existing sys_user table."""
 
 import bcrypt
-from datetime import datetime, UTC, timedelta
+from datetime import datetime, timedelta
 from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from deerflow.roleplay import get_db
 from deerflow.roleplay.auth_models import SysUserRow
+from deerflow.roleplay.timezone_utils import now_local
 
 class AuthService:
     @staticmethod
@@ -40,11 +41,11 @@ class AuthService:
             
             # Generate token (simple implementation)
             token = str(uuid4())
-            token_expire = datetime.now(UTC) + timedelta(hours=24)
+            token_expire = now_local() + timedelta(hours=24)
             
             # Update login info
             user.login_ip = "127.0.0.1"  # Should get real IP from request
-            user.login_date = datetime.now(UTC)
+            user.login_date = now_local()
             await session.commit()
             
             return {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clock, Star, MessageSquare, ChevronRight, Filter, Calendar, CheckCircle, Loader, Play } from 'lucide-react';
+import { Clock, Star, ChevronRight, Filter, Calendar, CheckCircle, Loader } from 'lucide-react';
 import { api } from '@/api';
 
 interface PracticeHistoryRecord {
@@ -11,7 +11,7 @@ interface PracticeHistoryRecord {
   startTime: string;
   endTime?: string;
   totalScore?: number;
-  totalRounds: number;
+  summary?: string;
   status: 'completed' | 'in_progress';
 }
 
@@ -35,7 +35,9 @@ export function HistoryPage() {
   }
 
   useEffect(() => {
-    fetchHistory();
+    const startTime = `${dateRange.start}T00:00:00Z`;
+    const endTime = `${dateRange.end}T23:59:59Z`;
+    fetchHistory(undefined, startTime, endTime);
   }, []);
 
   const fetchHistory = async (status?: string, startTime?: string, endTime?: string) => {
@@ -58,7 +60,7 @@ export function HistoryPage() {
           startTime: item.startTime,
           endTime: item.endTime,
           totalScore: item.totalScore,
-          totalRounds: item.dialogRounds || 0,
+          summary: item.summary,
           status: item.endTime ? 'completed' : 'in_progress',
         })));
       }
@@ -186,7 +188,7 @@ export function HistoryPage() {
       {/* 记录列表 */}
       {records.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-          <MessageSquare className="w-16 h-16 mb-4 opacity-50" />
+          <Star className="w-16 h-16 mb-4 opacity-50" />
           <p className="text-lg">暂无练习记录</p>
           <p className="text-sm mt-2">完成首次练习后，记录将显示在这里</p>
         </div>
@@ -224,10 +226,12 @@ export function HistoryPage() {
                       )}
                       {record.endTime && formatDateTime(record.endTime)}
                     </span>
-                    <span className="flex items-center gap-1">
-                      <MessageSquare className="w-3 h-3" />
-                      {record.totalRounds} 轮
-                    </span>
+                    {record.totalScore !== undefined && (
+                      <span className="flex items-center gap-1">
+                        <Star className="w-3 h-3" />
+                        {record.totalScore}分
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="flex flex-col items-end">

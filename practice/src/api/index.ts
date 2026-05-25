@@ -99,13 +99,7 @@ export const api = {
     },
     
     async create(data: Partial<Scene>): Promise<{ message: string; scene_id: string }> {
-      // 将 id 映射为 scene_id 以匹配数据库字段名
-      const payload = { ...data };
-      if (payload.id && !payload.scene_id) {
-        payload.scene_id = payload.id;
-        delete payload.id;
-      }
-      const response = await axiosInstance.post('/roleplay/scenes', payload);
+      const response = await axiosInstance.post('/roleplay/scenes', data);
       return response.data;
     },
     

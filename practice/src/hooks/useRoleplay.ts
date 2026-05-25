@@ -7,7 +7,7 @@ export function useRoleplay(courseId: number | null, existingRecordId: number | 
   const [recordId, setRecordId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
-  const [isEvaluating, setIsEvaluating] = useState(false); // 评价生成中状态
+  const [isEvaluating] = useState(false); // 评价生成中状态
   const [currentRound, setCurrentRound] = useState(0);
   const [totalRounds, setTotalRounds] = useState(0);
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
@@ -146,6 +146,9 @@ export function useRoleplay(courseId: number | null, existingRecordId: number | 
       }
 
       setCurrentRound(res.round);
+      if (res.totalRounds) {
+        setTotalRounds(res.totalRounds);
+      }
 
       if (res.isComplete) {
         setIsComplete(true);

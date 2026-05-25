@@ -23,7 +23,7 @@ export function MessageBubble({ message, isTyping, recordId, isEvaluating, onRet
     ...detailedEvaluation,
   };
 
-  const hasEvaluation = isUser && (message.evaluation || detailedEvaluation);
+  // const hasEvaluation = isUser && (message.evaluation || detailedEvaluation);
 
   // 当展开时获取详细评价建议
   useEffect(() => {
@@ -143,10 +143,10 @@ export function MessageBubble({ message, isTyping, recordId, isEvaluating, onRet
                             {/* 分数 */}
                             <div className="flex items-center justify-between mb-3">
                               <div className="flex items-center gap-2">
-                                <span className="text-2xl font-bold text-red-500">{message.evaluation.score || message.evaluation.roundScore || 0}</span>
+                                <span className="text-2xl font-bold text-red-500">{message.evaluation?.score || message.evaluation?.roundScore || 0}</span>
                                 <div className="flex">
                                   {[1, 2, 3, 4, 5].map((star) => (
-                                    <span key={star} className={`text-lg ${star <= Math.ceil((message.evaluation.score || message.evaluation.roundScore || 0) / 20) ? 'text-yellow-400' : 'text-gray-200'}`}>★</span>
+                                    <span key={star} className={`text-lg ${star <= Math.ceil((message.evaluation?.score || message.evaluation?.roundScore || 0) / 20) ? 'text-yellow-400' : 'text-gray-200'}`}>★</span>
                                   ))}
                                 </div>
                               </div>
@@ -154,9 +154,9 @@ export function MessageBubble({ message, isTyping, recordId, isEvaluating, onRet
                             </div>
 
                             {/* 维度得分 */}
-                            {message.evaluation.dimensionScores && (
+                            {message.evaluation?.dimensionScores && (
                               <div className="mb-3">
-                                {Object.entries(message.evaluation.dimensionScores).map(([dimension, score]) => (
+                                {Object.entries(message.evaluation?.dimensionScores || {}).map(([dimension, score]) => (
                                   <div key={dimension} className="flex items-center justify-between text-xs text-gray-500 mb-1">
                                     <span>{dimension}</span>
                                     <div className="flex items-center gap-2">
