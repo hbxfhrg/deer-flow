@@ -866,6 +866,7 @@ class PracticeService:
                 
                 # 创建 pract_record（在对练结束时创建）
                 practice_record = PracticeRecordRow(
+                    record_id=record_id,  # 存储 pract_course_record 的 id
                     course_id=record.course_id,
                     user_name=record.user_name,
                     start_time=record.start_time,
@@ -985,6 +986,7 @@ class PracticeService:
             
             # 创建 pract_record（在对练结束时创建）
             practice_record = PracticeRecordRow(
+                record_id=record_id,  # 存储 pract_course_record 的 id
                 course_id=record.course_id,
                 user_name=record.user_name,
                 start_time=record.start_time,

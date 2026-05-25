@@ -74,7 +74,8 @@ class EvaluationRow(RoleplayBase):
 class PracticeRecordRow(RoleplayBase):
     __tablename__ = "pract_record"
 
-    record_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)  # 自增主键
+    record_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)  # 存储 pract_course_record 的 id，非自增
     course_id: Mapped[int] = mapped_column(Integer, nullable=False)
     user_name: Mapped[str] = mapped_column(String(50))
     total_score: Mapped[float] = mapped_column(Float, nullable=True)

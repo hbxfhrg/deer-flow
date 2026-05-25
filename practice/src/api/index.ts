@@ -264,6 +264,15 @@ export const api = {
       const response = await axiosInstance.get(`/roleplay/practice/${recordId}/suggestions/${dialogId}`);
       return response.data;
     },
+    
+    async getReport(recordId: number): Promise<{
+      success: boolean;
+      report?: any;
+      message?: string;
+    }> {
+      const response = await axiosInstance.get(`/roleplay/practice/${recordId}/report`);
+      return response.data;
+    },
   },
 
   // 线程管理

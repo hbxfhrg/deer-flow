@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { MessageBubble } from '@/components/MessageBubble';
 import { EvaluationCard } from '@/components/EvaluationCard';
-import { ReportPanel } from '@/components/ReportPanel';
 import { ChatInput } from '@/components/ChatInput';
 import { useRoleplay } from '@/hooks/useRoleplay';
 import api from '../api';
@@ -30,13 +29,16 @@ export function ChatPage() {
     isLoading,
     isTyping,
     evaluation,
-    report,
     isComplete,
     currentRound,
     totalRounds,
+    recordId: currentRecordId,
+    showCompleteModal,
+    isReportReady,
     initConversation,
     sendMessage,
     endPractice,
+    confirmComplete,
     messagesEndRef,
   } = useRoleplay(
     courseId ? Number(courseId) : null,
@@ -49,6 +51,14 @@ export function ChatPage() {
       initConversation();
     }
   }, [recordId, initConversation]);
+
+  // 点击确认按钮后跳转到结果页面
+  const handleConfirmComplete = () => {
+    confirmComplete();
+    if (currentRecordId) {
+      navigate(`/result?recordId=${currentRecordId}`);
+    }
+  };
 
   return (
     <div className="h-full flex flex-col bg-gray-50">
@@ -182,16 +192,14 @@ export function ChatPage() {
           )}
           {isComplete && (
             <div className="bg-green-50 border-t border-green-100 px-4 py-3 text-center">
-              <span className="text-sm text-green-600 font-medium">✓ 对练已完成</span>
+              <span className="text-sm text-green-600 font-medium">✓ 对练已完成，正在跳转...</span>
             </div>
           )}
         </div>
 
-        {/* 右侧面板 */}
+        {/* 右侧面板 - 评估信息 */}
         <div className="w-80 bg-white border-l border-gray-100 p-4 overflow-y-auto hidden lg:block">
-          {isComplete && report ? (
-            <ReportPanel report={report} />
-          ) : evaluation && !isComplete ? (
+          {evaluation && !isComplete ? (
             <EvaluationCard evaluation={evaluation} status="completed" />
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-gray-400">
@@ -206,13 +214,47 @@ export function ChatPage() {
         </div>
       </div>
 
-      {/* 移动端：已完成的报告 */}
-      {isComplete && report && (
-        <div className="lg:hidden bg-white border-t border-gray-100 p-4 overflow-y-auto max-h-[50vh]">
-          <ReportPanel report={report} />
+      {/* 对练完成模态框 */}
+      {showCompleteModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
+            {/* 图标 */}
+            <div className="flex justify-center pt-6">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+                <svg className="w-8 h-8 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+            </div>
+            
+            {/* 标题和描述 */}
+            <div className="text-center px-6 py-4">
+              <h3 className="text-lg font-semibold text-gray-800 mb-2">本轮对练已结束</h3>
+              <p className="text-sm text-gray-500">
+                {isReportReady ? '查看评测报告' : '评测报告生成中...'}
+              </p>
+            </div>
+            
+            {/* 按钮 */}
+            <div className="px-6 pb-6">
+              <button
+                onClick={handleConfirmComplete}
+                disabled={!isReportReady}
+                className="w-full py-3 bg-primary-500 text-white rounded-xl font-medium hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isReportReady ? (
+                  '查看评测报告'
+                ) : (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    生成中
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
-
 
     </div>
   );

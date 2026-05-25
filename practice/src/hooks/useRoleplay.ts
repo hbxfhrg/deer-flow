@@ -13,6 +13,8 @@ export function useRoleplay(courseId: number | null, existingRecordId: number | 
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
   const [report, setReport] = useState<EvaluationReport | null>(null);
   const [isComplete, setIsComplete] = useState(false);
+  const [showCompleteModal, setShowCompleteModal] = useState(false); // 对练完成模态框
+  const [isReportReady, setIsReportReady] = useState(false); // 报告是否准备好
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // 滚动到底部
@@ -152,7 +154,14 @@ export function useRoleplay(courseId: number | null, existingRecordId: number | 
 
       if (res.isComplete) {
         setIsComplete(true);
-        if (res.report) setReport(res.report);
+        if (res.report) {
+          setReport(res.report);
+          setIsReportReady(true);
+        } else {
+          setIsReportReady(false);
+        }
+        // 显示对练完成模态框
+        setShowCompleteModal(true);
       }
     } catch (e) {
       console.error('Failed to send message:', e);
@@ -186,6 +195,18 @@ export function useRoleplay(courseId: number | null, existingRecordId: number | 
     setEvaluation(null);
     setCurrentRound(0);
     setTotalRounds(0);
+    setShowCompleteModal(false);
+    setIsReportReady(false);
+  }, []);
+
+  // 关闭完成模态框（不跳转）
+  const closeCompleteModal = useCallback(() => {
+    setShowCompleteModal(false);
+  }, []);
+
+  // 确认完成并关闭模态框（用于外部跳转）
+  const confirmComplete = useCallback(() => {
+    setShowCompleteModal(false);
   }, []);
 
   return {
@@ -198,10 +219,15 @@ export function useRoleplay(courseId: number | null, existingRecordId: number | 
     isComplete,
     currentRound,
     totalRounds,
+    recordId,
+    showCompleteModal,
+    isReportReady,
     initConversation,
     sendMessage,
     endPractice,
     reset,
+    closeCompleteModal,
+    confirmComplete,
     messagesEndRef,
   };
 }
