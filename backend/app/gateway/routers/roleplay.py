@@ -598,6 +598,20 @@ async def practice_history(record_id: int):
     try:
         return await PracticeService.get_practice_history(record_id)
     except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/practice/{record_id}/suggestions/{dialog_id}", summary="获取详细评价建议")
+async def get_practice_suggestions(record_id: int, dialog_id: int):
+    """
+    获取指定对话的详细评价建议（包括改进建议列表和润色表达）
+    - 与对话轮次分开返回，不影响主要流转速度
+    - 用户点击"改进建议"按钮时调用此接口
+    """
+    try:
+        return await PracticeService.get_detailed_suggestions(record_id, dialog_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
 @router.get("/practice/{record_id}/report", summary="获取评估报告")

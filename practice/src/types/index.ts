@@ -3,6 +3,19 @@ export interface Message {
   role: 'user' | 'assistant';
   content: string;
   createdAt?: string;
+  evaluation?: MessageEvaluation; // 用户消息的评价信息
+  isEvaluating?: boolean; // 是否正在评价中
+  roundNumber?: number; // 当前轮次
+}
+
+export interface MessageEvaluation {
+  score?: number; // 评价分数
+  roundScore?: number; // 轮次分数（兼容旧字段）
+  feedback?: string; // 反馈内容
+  summary?: string; // 总结（与代码中使用的字段一致）
+  dimensionScores?: Record<string, number>; // 维度得分
+  suggestions?: string[]; // 改进建议列表
+  polishedExpression?: string; // 润色表达
 }
 
 export interface Evaluation {

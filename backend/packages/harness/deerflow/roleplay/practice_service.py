@@ -27,11 +27,271 @@ def _parse_json_from_text(text: str) -> dict:
     match = re.search(r'```(?:json)?\s*\n?(.*?)\n?\s*```', text, re.DOTALL)
     if match:
         text = match.group(1).strip()
-    return json.loads(text)
+    return text
+
+
+# 修复策略成功率统计（基于经验值，可根据实际运行数据动态调整）
+_REPAIR_STRATEGY_SUCCESS_RATES = {
+    "py_fix": 0.75,    # Python代码修复成功率
+    "llm_fix": 0.85,   # LLM格式修复成功率
+    "llm_regen": 0.9,  # LLM重新生成成功率
+}
+
+# 错误类型与推荐策略映射
+_ERROR_TYPE_STRATEGIES = {
+    "missing_quote": ["py_fix", "llm_fix", "llm_regen"],     # 缺引号：Py修复最有效
+    "missing_comma": ["py_fix", "llm_fix", "llm_regen"],     # 缺逗号：Py修复最有效
+    "missing_bracket": ["py_fix", "llm_fix", "llm_regen"],   # 缺括号：Py修复最有效
+    "format_mess": ["llm_fix", "llm_regen", "py_fix"],       # 格式混乱：LLM修复更有效
+    "content_empty": ["llm_regen", "llm_fix", "py_fix"],     # 内容缺失：重新生成最有效
+    "unknown": ["llm_fix", "llm_regen", "py_fix"],           # 未知错误：优先LLM
+}
+
+
+def _classify_json_error(error_msg: str) -> str:
+    """
+    识别 JSON 解析错误类型
+    
+    Args:
+        error_msg: JSONDecodeError 的错误消息
+    
+    Returns:
+        错误类型：missing_quote, missing_comma, missing_bracket, format_mess, content_empty, unknown
+    """
+    error_msg_lower = error_msg.lower()
+    
+    # 缺引号：Expecting property name enclosed in double quotes
+    if "property name" in error_msg_lower or "expecting" in error_msg_lower and "double quote" in error_msg_lower:
+        return "missing_quote"
+    
+    # 缺逗号：Expecting ',' delimiter
+    if "expecting ','" in error_msg_lower or "expecting ',' delimiter" in error_msg_lower:
+        return "missing_comma"
+    
+    # 缺括号：Unexpected end of JSON input
+    if "unexpected end of json" in error_msg_lower:
+        return "missing_bracket"
+    
+    # 格式混乱：Invalid JSON, multiple errors
+    if "invalid" in error_msg_lower or "multiple" in error_msg_lower:
+        return "format_mess"
+    
+    # 内容缺失：JSON结构正确但数据为空
+    if "null" in error_msg_lower or "empty" in error_msg_lower:
+        return "content_empty"
+    
+    return "unknown"
+
+
+def _get_optimized_strategy_order(error_type: str) -> list:
+    """
+    根据错误类型和成功率获取优化后的策略执行顺序
+    
+    Args:
+        error_type: 错误类型
+    
+    Returns:
+        策略顺序列表
+    """
+    # 获取该错误类型的推荐策略顺序
+    base_strategies = _ERROR_TYPE_STRATEGIES.get(error_type, ["llm_fix", "llm_regen", "py_fix"])
+    
+    # 根据成功率排序，保持推荐顺序的同时优先高成功率策略
+    scored_strategies = []
+    for strategy in base_strategies:
+        scored_strategies.append((strategy, _REPAIR_STRATEGY_SUCCESS_RATES.get(strategy, 0.5)))
+    
+    # 按成功率从高到低排序
+    scored_strategies.sort(key=lambda x: -x[1])
+    
+    return [s[0] for s in scored_strategies]
+
+
+async def _parse_json_with_retry(text: str, model_name: str | None = None, max_rounds: int = 3) -> dict:
+    """
+    带智能重试机制的 JSON 解析：
+    
+    优化策略：
+    1. 错误类型识别：根据 JSON 解析错误类型选择最佳修复策略
+    2. 智能步骤排序：根据成功率动态调整策略执行顺序
+    
+    每轮按优化后的顺序执行修复策略，最多走3轮。
+    
+    Args:
+        text: LLM 返回的原始文本
+        model_name: 模型名称
+        max_rounds: 最大重试轮数（默认3）
+    
+    Returns:
+        解析后的 JSON 字典，或包含错误提示的字典
+    """
+    # 第一步：尝试基础解析
+    cleaned_text = _parse_json_from_text(text)
+    error_type = "unknown"
+    
+    try:
+        result = json.loads(cleaned_text)
+        if isinstance(result, dict):
+            logger.debug("【JSON解析成功】基础解析一次性成功")
+            return result
+    except json.JSONDecodeError as e:
+        error_type = _classify_json_error(str(e))
+        logger.warning(f"【JSON解析失败】基础解析失败，错误类型: {error_type}, 错误消息: {e}")
+    
+    # 获取优化后的策略执行顺序
+    strategy_order = _get_optimized_strategy_order(error_type)
+    logger.info(f"【JSON修复】错误类型: {error_type}, 优化策略顺序: {strategy_order}")
+    
+    # 智能重试：最多3轮，每轮按优化顺序执行策略
+    for round_num in range(1, max_rounds + 1):
+        logger.info(f"【JSON修复】开始第{round_num}/{max_rounds}轮重试")
+        
+        for strategy in strategy_order:
+            step_name = {
+                "py_fix": "Python代码修复",
+                "llm_fix": "LLM格式修复",
+                "llm_regen": "LLM重新生成"
+            }[strategy]
+            
+            logger.info(f"【JSON修复】第{round_num}轮-{step_name}")
+            
+            try:
+                if strategy == "py_fix":
+                    fixed_json = _fix_json_with_code(cleaned_text)
+                elif strategy == "llm_fix":
+                    fixed_json = await _fix_json_format(cleaned_text, model_name)
+                elif strategy == "llm_regen":
+                    fixed_json = await _regenerate_json(text, model_name)
+                    if fixed_json:
+                        fixed_json = _parse_json_from_text(fixed_json)
+                else:
+                    continue
+                
+                if fixed_json:
+                    result = json.loads(fixed_json)
+                    if isinstance(result, dict):
+                        logger.info(f"【JSON修复成功】第{round_num}轮-{step_name}成功")
+                        return result
+            except Exception as e:
+                logger.warning(f"【JSON修复失败】第{round_num}轮-{step_name}失败: {e}")
+        
+        logger.info(f"【JSON修复】第{round_num}轮结束，进入下一轮")
+    
+    # 所有轮次都失败，返回错误提示
+    logger.error(f"【JSON解析完全失败】经过{max_rounds}轮重试后仍无法解析")
+    logger.error(f"原始文本: {text[:500]}...")
+    return {
+        "dimension_scores": {},
+        "summary": "程序出错了，请稍后再试。",
+        "strengths": [],
+        "improvements": [],
+    }
+
+
+async def _fix_json_format(malformed_json: str, model_name: str | None = None) -> str | None:
+    """调用 LLM 修复格式错误的 JSON（第1轮重试）"""
+    system_prompt = """
+你是一个 JSON 格式修复专家。请修复以下 JSON 文本中的格式错误：
+
+要求：
+1. 保持原始数据内容不变
+2. 修复语法错误（如缺失逗号、引号不匹配等）
+3. 返回纯 JSON 字符串，不要包含其他内容
+4. 如果无法修复，返回空字符串
+
+示例：
+输入：{"name": "test", "value": 123
+输出：{"name": "test", "value": 123}
+"""
+    
+    user_prompt = f"请修复以下 JSON 的格式错误：\n{malformed_json}"
+    
+    try:
+        response = await _llm_invoke_text(system_prompt, user_prompt, model_name)
+        # 清理响应，提取 JSON
+        cleaned = _parse_json_from_text(response)
+        # 验证是否是有效的 JSON
+        json.loads(cleaned)
+        return cleaned
+    except Exception as e:
+        logger.error(f"LLM格式修复失败: {e}")
+        return None
+
+
+async def _regenerate_json(original_text: str, model_name: str | None = None) -> str | None:
+    """调用 LLM 重新生成完整的 JSON（第2轮重试）"""
+    system_prompt = """
+你是一个专业的数据分析师。根据以下对话内容，重新生成一份格式正确的评估报告 JSON：
+
+要求：
+1. 输出必须是纯 JSON 格式，不要包含 markdown 代码块
+2. JSON 必须包含以下字段：
+   - dimension_scores: 对象，包含各个考核维度的分数
+   - summary: 字符串，总结评价内容
+   - strengths: 数组，列出优点
+   - improvements: 数组，列出改进建议
+3. 如果没有足够信息，使用合理的默认值
+
+示例输出：
+{"dimension_scores": {"沟通能力": 80, "专业素养": 85}, "summary": "整体表现良好", "strengths": ["表达清晰"], "improvements": ["需要更多技术细节"]}
+"""
+    
+    user_prompt = f"根据以下对话内容，生成评估报告 JSON：\n{original_text}"
+    
+    try:
+        response = await _llm_invoke_text(system_prompt, user_prompt, model_name)
+        # 清理响应，提取 JSON
+        cleaned = _parse_json_from_text(response)
+        # 验证是否是有效的 JSON
+        json.loads(cleaned)
+        return cleaned
+    except Exception as e:
+        logger.error(f"LLM重新生成失败: {e}")
+        return None
+
+
+def _fix_json_with_code(malformed_json: str) -> str | None:
+    """使用 Python 代码尝试修复常见的 JSON 格式错误（第3轮重试）"""
+    try:
+        # 修复1：添加缺失的引号
+        fixed = malformed_json
+        
+        # 修复未加引号的键名
+        import re
+        # 匹配未加引号的键名：{key: value} -> {"key": value}
+        fixed = re.sub(r'{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'{"\1":', fixed)
+        fixed = re.sub(r',\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r',"\1":', fixed)
+        
+        # 修复末尾缺少闭合括号
+        if fixed.count('{') > fixed.count('}'):
+            fixed += '}' * (fixed.count('{') - fixed.count('}'))
+        if fixed.count('[') > fixed.count(']'):
+            fixed += ']' * (fixed.count('[') - fixed.count(']'))
+        
+        # 修复字符串末尾缺少引号
+        lines = fixed.split('\n')
+        fixed_lines = []
+        for line in lines:
+            # 查找未闭合的字符串
+            if line.count('"') % 2 != 0:
+                # 在末尾添加引号
+                fixed_lines.append(line.rstrip() + '"')
+            else:
+                fixed_lines.append(line)
+        fixed = '\n'.join(fixed_lines)
+        
+        # 验证修复结果
+        result = json.loads(fixed)
+        if isinstance(result, dict):
+            return json.dumps(result)
+        return None
+    except Exception as e:
+        logger.error(f"Python代码修复失败: {e}")
+        return None
 
 
 async def _llm_invoke_json(system_prompt: str, user_prompt: str, model_name: str | None = None) -> dict:
-    """通用 LLM 调用，返回解析后的 JSON dict"""
+    """通用 LLM 调用，返回解析后的 JSON dict（带重试机制）"""
     llm = _create_llm(model_name)
     response = await llm.ainvoke([
         SystemMessage(content=system_prompt),
@@ -40,7 +300,7 @@ async def _llm_invoke_json(system_prompt: str, user_prompt: str, model_name: str
     raw = response.content
     if isinstance(raw, list):
         raw = " ".join(str(c) for c in raw)
-    return _parse_json_from_text(raw)
+    return await _parse_json_with_retry(raw, model_name, max_retries=3)
 
 
 async def _llm_invoke_text(system_prompt: str, user_prompt: str, model_name: str | None = None) -> str:
@@ -107,6 +367,83 @@ CUSTOMER_SYSTEM_PROMPT = """系统角色：你正在模拟一位真实客户，�
 - 你可以回答："续航长确实是个重要优势，能具体说说在不同路况下的实际表现吗？"
 
 请根据以上设定，生成你对学员上一句话的回复。先简要回应，再提出相关问题。只输出回复内容，不要加任何前缀或说明。"""
+
+# 开场白专用模板 - 包含自我介绍
+OPENING_PROMPT = """系统角色：你正在模拟一位真实客户，正在进行一场对话练习。
+
+【场景背景】
+{scene_description}
+
+【场景知识】
+{summary_text}
+
+【你的人物设定】
+- 这是对话的开始，你需要先做自我介绍，然后提出问题
+- 说话自然、口语化，避免 AI 味
+- 自我介绍要简短亲切，说明你的身份（如：我是来买车的客户、我是面试者等）
+- 自我介绍后，自然过渡到第一个问题
+- 你的回复要简短，2-4句话即可
+- **关键要求**：提出**开放性问题**，鼓励学员详细阐述
+
+【本轮考察重点】：{current_category}
+- 你的问题必须与此维度相关
+- 提出与此维度直接相关的具体问题或疑虑
+
+例如，如果场景是汽车销售，考察"三电系统"：
+- "您好！我是来看车的客户，想了解一下你们的电动车。能先介绍一下这款车的电池技术吗？"
+- "你好，我最近在考虑换车，对电动车比较感兴趣。这款车的续航表现怎么样？"
+
+例如，如果场景是面试：
+- "你好，我是面试官陈翔。请先介绍一下你申请的职位和相关工作经验。"
+
+请根据以上设定，生成开场白。先做简短自我介绍，再提出第一个问题。只输出开场白内容，不要加任何前缀或说明。"""
+
+# 详细评价建议模板 - 生成改进建议和润色表达
+DETAIL_SUGGESTION_PROMPT = """系统角色：你是一位专业的对练教练，负责为学员提供详细的改进建议。
+
+【场景背景】
+{scene_description}
+
+【场景知识】
+{summary_text}
+
+【本轮考察重点】：{current_category}
+
+【对话历史】
+{dialog_history}
+
+【学员最新回复】
+{user_message}
+
+【任务要求】
+请针对学员的最新回复，生成详细的评价建议，包括：
+
+1. **改进建议列表**：列出3-5条具体、可操作的改进建议
+   - 每条建议要具体，指出学员哪里做得不够好
+   - 提供具体的改进方向
+   - 使用简洁明了的语言
+
+2. **润色表达**：重新组织学员的回复，使其更加专业、流畅、有说服力
+   - 保持原意不变
+   - 使用更恰当的词汇和表达方式
+   - 增加必要的细节和数据支持
+
+【输出格式】
+请按以下 JSON 格式输出，不要包含任何额外内容：
+{{
+  "suggestions": ["改进建议1", "改进建议2", "改进建议3"],
+  "polishedExpression": "润色后的完整表达"
+}}
+
+示例输出：
+{{
+  "suggestions": [
+    "可以在介绍产品时更加详细，确保客户了解产品的特点和优势",
+    "尝试使用更友好的语气，增加与客户的互动",
+    "在回答时，确保语句完整，避免使用不清晰的表达"
+  ],
+  "polishedExpression": "你好，陈翔！很高兴认识你。我们的产品主要是硬件工牌，它具有高耐用性和多功能性，可以帮助企业更好地管理员工信息..."
+}}"""
 
 
 EVALUATION_SYSTEM_PROMPT = """系统角色：你是一位专业的对练教练，负责评估学员的对话表现。
@@ -215,6 +552,18 @@ def _get_current_category(scene: SceneRow, round_num: int, seed: int = 0) -> str
     return categories[-1]
 
 
+async def _generate_opening(
+    scene: SceneRow, total_rounds: int, current_category: str = ""
+) -> str:
+    """调用 LLM 生成开场白（包含自我介绍）"""
+    system_prompt = OPENING_PROMPT.format(
+        scene_description=scene.scene_description or "",
+        summary_text=scene.summary_text or scene.knowledge_base or "",
+        current_category=current_category or "综合能力",
+    )
+    return await _llm_invoke_text(system_prompt, "请生成开场白。", scene.model_name)
+
+
 async def _generate_customer_reply(
     scene: SceneRow, dialog_history: list, round_num: int, total_rounds: int, current_category: str = ""
 ) -> str:
@@ -235,7 +584,7 @@ async def _generate_customer_reply(
 async def _evaluate_user_message(
     scene: SceneRow, dialog_history: list, user_message: str, current_category: str = ""
 ) -> dict:
-    """调用 LLM 评估学员发言"""
+    """调用 LLM 评估学员发言（基础评估，用于实时反馈）"""
     history_text = _build_dialog_history(dialog_history) if dialog_history else "（对话刚开始，暂无历史）"
 
     system_prompt = EVALUATION_SYSTEM_PROMPT.format(
@@ -248,6 +597,22 @@ async def _evaluate_user_message(
     return await _llm_invoke_json(system_prompt, "请评估。", scene.model_name)
 
 
+async def _generate_detailed_suggestions(
+    scene: SceneRow, dialog_history: list, user_message: str, current_category: str = ""
+) -> dict:
+    """调用 LLM 生成详细评价建议（包括改进建议列表和润色表达）"""
+    history_text = _build_dialog_history(dialog_history) if dialog_history else "（对话刚开始，暂无历史）"
+
+    system_prompt = DETAIL_SUGGESTION_PROMPT.format(
+        scene_description=scene.scene_description or "",
+        summary_text=scene.summary_text or scene.knowledge_base or "",
+        current_category=current_category or "综合能力",
+        user_message=user_message,
+        dialog_history=history_text,
+    )
+    return await _llm_invoke_json(system_prompt, "请生成详细评价建议。", scene.model_name)
+
+
 async def _generate_report(scene: SceneRow, dialogs: list) -> dict:
     """调用 LLM 生成最终评估报告"""
     dialog_text = _build_dialog_history(dialogs)
@@ -258,6 +623,36 @@ async def _generate_report(scene: SceneRow, dialogs: list) -> dict:
         full_dialog_with_scores=dialog_text,
     )
     return await _llm_invoke_json(system_prompt, "请生成最终报告。", scene.model_name)
+
+
+async def _generate_closing_message(scene: SceneRow, dialogs: list, total_score: float) -> str:
+    """生成对练结束语"""
+    dialog_text = _build_dialog_history(dialogs)
+    
+    system_prompt = f"""
+系统角色：你正在模拟一位真实客户，与学员完成了一场对话练习。
+
+【场景背景】
+{scene.scene_description or ''}
+
+【对话历史】
+{dialog_text}
+
+【你的任务】
+对话已结束，请生成一条自然、友好的结束语：
+1. 感谢学员的耐心解答
+2. 表达对产品/服务的满意或兴趣
+3. 表示期待下次交流或购买意愿
+4. 语气亲切、自然，符合日常对话习惯
+5. 不要超过3句话
+
+【示例】
+- "感谢你的详细介绍！我对这款产品很感兴趣，考虑一下后会联系你。再见！"
+- "谢谢你的耐心解答，我了解得很清楚了。期待下次见面！"
+"""
+    
+    response = await _llm_invoke_text(system_prompt, "请生成自然友好的结束语。", scene.model_name)
+    return response.strip() if response else "感谢你的解答，期待下次交流！"
 
 
 def _calc_total_score(report: dict) -> float:
@@ -351,7 +746,7 @@ class PracticeService:
 
         # 3. LLM 生成开场白（第1轮对应第一个随机后的考核维度，使用 record_id 作为种子）
         first_category = _get_current_category(scene, 1, record_id)
-        opening_message = await _generate_customer_reply(scene, [], 1, total_rounds, first_category)
+        opening_message = await _generate_opening(scene, total_rounds, first_category)
 
         # 4. 写入 dialog_detail
         await DialogDetailService.create_dialog({
@@ -371,7 +766,7 @@ class PracticeService:
         }
 
     @staticmethod
-    async def turn(cls, record_id: int, user_message: str) -> dict:
+    async def turn(record_id: int, user_message: str) -> dict:
         """
         对练对话轮次处理流程：
         1. 加载记录、课程、场景
@@ -487,6 +882,15 @@ class PracticeService:
                 
                 await session.commit()
 
+            # 生成结束语
+            closing_message = await _generate_closing_message(scene, all_dialogs, total_score)
+            
+            await DialogDetailService.create_dialog({
+                "record_id": record_id,
+                "speaker": 2,
+                "content": closing_message,
+            })
+            
             return {
                 "recordId": record_id,
                 "round": current_round,
@@ -495,7 +899,7 @@ class PracticeService:
                     "dimensionScores": evaluation.get("dimension_scores", {}),
                     "feedback": evaluation.get("feedback", ""),
                 },
-                "customerMessage": "",
+                "customerMessage": closing_message,
                 "isComplete": True,
                 "report": report,
             }
@@ -644,3 +1048,49 @@ class PracticeService:
                 "dialog_rounds": record.dialog_rounds,
                 "report": record.report_data or {},
             }
+
+    @staticmethod
+    async def get_detailed_suggestions(record_id: int, dialog_id: int) -> dict:
+        """
+        获取指定对话的详细评价建议（包括改进建议列表和润色表达）
+        - 与对话轮次分开返回，不影响主要流转速度
+        """
+        # 1. 加载记录、课程、场景
+        record, course, scene = await _load_scene_by_record(record_id)
+
+        # 2. 获取对话详情
+        dialogs = await DialogDetailService.get_dialogs_by_record(record_id)
+        
+        # 3. 找到指定的对话
+        target_dialog = None
+        for d in dialogs:
+            if d.dialog_id == dialog_id:
+                target_dialog = d
+                break
+        
+        if not target_dialog:
+            raise ValueError(f"对话记录 {dialog_id} 不存在")
+        
+        # 4. 计算当前轮次和考核维度
+        current_round = 0
+        for d in dialogs:
+            if d.speaker == 1 and d.content:  # 学员回复
+                current_round += 1
+                if d.dialog_id == dialog_id:
+                    break
+        
+        current_category = _get_current_category(scene, current_round, record_id)
+
+        # 5. 生成详细评价建议
+        suggestions = await _generate_detailed_suggestions(
+            scene, dialogs, target_dialog.content, current_category
+        )
+
+        return {
+            "recordId": record_id,
+            "dialogId": dialog_id,
+            "round": current_round,
+            "currentCategory": current_category,
+            "suggestions": suggestions.get("suggestions", []),
+            "polishedExpression": suggestions.get("polishedExpression", ""),
+        }

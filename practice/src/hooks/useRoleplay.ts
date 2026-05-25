@@ -7,6 +7,7 @@ export function useRoleplay(courseId: number | null, existingRecordId: number | 
   const [recordId, setRecordId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
+  const [isEvaluating, setIsEvaluating] = useState(false); // 评价生成中状态
   const [currentRound, setCurrentRound] = useState(0);
   const [totalRounds, setTotalRounds] = useState(0);
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
@@ -92,6 +93,8 @@ export function useRoleplay(courseId: number | null, existingRecordId: number | 
       role: 'user',
       content: content.trim(),
       createdAt: new Date().toISOString(),
+      isEvaluating: true, // 标记正在评价中
+      roundNumber: currentRound,
     };
     setMessages(prev => [...prev, userMsg]);
     setIsLoading(true);
@@ -99,6 +102,24 @@ export function useRoleplay(courseId: number | null, existingRecordId: number | 
 
     try {
       const res = await api.practice.turn(recordId, content.trim());
+
+      // 更新最新消息的评价数据
+      setMessages(prev => {
+        const updated = [...prev];
+        const lastMsgIndex = updated.findIndex(m => m.id === userMsg.id);
+        if (lastMsgIndex !== -1 && res.evaluation) {
+          updated[lastMsgIndex] = {
+            ...updated[lastMsgIndex],
+            isEvaluating: false, // 评价完成
+            evaluation: {
+              score: res.evaluation.roundScore,
+              dimensionScores: res.evaluation.dimensionScores,
+              summary: res.evaluation.feedback,
+            },
+          };
+        }
+        return updated;
+      });
 
       // 更新评估
       if (res.evaluation) {
@@ -112,13 +133,14 @@ export function useRoleplay(courseId: number | null, existingRecordId: number | 
         });
       }
 
-      // 客户回复
-      if (res.customerMessage) {
+      // 客户回复（无论是否完成都显示，包括结束语）
+      if (res.customerMessage && res.customerMessage.trim()) {
         const aiMsg: Message = {
           id: `ai-${Date.now()}`,
           role: 'assistant',
           content: res.customerMessage,
           createdAt: new Date().toISOString(),
+          roundNumber: res.round,
         };
         setMessages(prev => [...prev, aiMsg]);
       }
@@ -135,7 +157,7 @@ export function useRoleplay(courseId: number | null, existingRecordId: number | 
       setIsLoading(false);
       setIsTyping(false);
     }
-  }, [recordId, isLoading]);
+  }, [recordId, isLoading, currentRound]);
 
   // 手动结束对练
   const endPractice = useCallback(async () => {
@@ -167,6 +189,7 @@ export function useRoleplay(courseId: number | null, existingRecordId: number | 
     messages,
     isLoading,
     isTyping,
+    isEvaluating,
     evaluation,
     report,
     isComplete,

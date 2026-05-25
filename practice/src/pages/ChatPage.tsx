@@ -138,6 +138,8 @@ export function ChatPage() {
                   key={message.id}
                   message={message}
                   isTyping={isTyping && index === messages.length - 1 && message.role === 'assistant'}
+                  recordId={Number(recordId) || undefined}
+                  isEvaluating={message.isEvaluating}
                 />
               ))}
               {isTyping && (
@@ -211,12 +213,7 @@ export function ChatPage() {
         </div>
       )}
 
-      {/* 移动端：过程评估 */}
-      {evaluation && !isComplete && (
-        <div className="lg:hidden bg-white border-t border-gray-100 p-4">
-          <EvaluationCard evaluation={evaluation} status="completed" />
-        </div>
-      )}
+
     </div>
   );
 }

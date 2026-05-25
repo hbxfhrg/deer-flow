@@ -262,6 +262,14 @@ export const api = {
       });
       return response.data;
     },
+    
+    async getSuggestions(recordId: number, dialogId: number): Promise<{
+      suggestions: string[];
+      polishedExpression: string;
+    }> {
+      const response = await axiosInstance.get(`/roleplay/practice/${recordId}/suggestions/${dialogId}`);
+      return response.data;
+    },
   },
 
   // 线程管理

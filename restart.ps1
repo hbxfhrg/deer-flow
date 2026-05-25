@@ -2,6 +2,53 @@
 
 Write-Host "=== 清理旧进程 ===" -ForegroundColor Yellow
 
+# 关闭所有其他终端窗口（保留当前窗口）
+Write-Host "  关闭其他终端窗口..." -ForegroundColor Gray
+$currentPID = $PID
+
+# 关闭 PowerShell 进程
+$psProcs = Get-Process powershell -ErrorAction SilentlyContinue
+if ($psProcs) {
+    foreach ($proc in $psProcs) {
+        if ($proc.Id -ne $currentPID) {
+            try {
+                Write-Host "  停止 PowerShell 进程 ID: $($proc.Id)" -ForegroundColor Gray
+                Stop-Process -Id $proc.Id -Force -ErrorAction Stop
+            } catch {
+                Write-Host "  无法停止 PowerShell 进程 ID: $($proc.Id)" -ForegroundColor Yellow
+            }
+        }
+    }
+}
+
+# 关闭 PowerShell Core 进程 (pwsh)
+$pwshProcs = Get-Process pwsh -ErrorAction SilentlyContinue
+if ($pwshProcs) {
+    foreach ($proc in $pwshProcs) {
+        if ($proc.Id -ne $currentPID) {
+            try {
+                Write-Host "  停止 pwsh 进程 ID: $($proc.Id)" -ForegroundColor Gray
+                Stop-Process -Id $proc.Id -Force -ErrorAction Stop
+            } catch {
+                Write-Host "  无法停止 pwsh 进程 ID: $($proc.Id)" -ForegroundColor Yellow
+            }
+        }
+    }
+}
+
+# 关闭 Windows Terminal 进程
+$wtProcs = Get-Process wt -ErrorAction SilentlyContinue
+if ($wtProcs) {
+    foreach ($proc in $wtProcs) {
+        try {
+            Write-Host "  停止 Windows Terminal 进程 ID: $($proc.Id)" -ForegroundColor Gray
+            Stop-Process -Id $proc.Id -Force -ErrorAction Stop
+        } catch {
+            Write-Host "  无法停止 Windows Terminal 进程 ID: $($proc.Id)" -ForegroundColor Yellow
+        }
+    }
+}
+
 # 方法1：通过端口查找并停止进程
 $ports = @(3000, 3001, 3002, 8001, 8000, 4000)
 foreach ($port in $ports) {
@@ -27,6 +74,38 @@ if ($pythonProcs) {
             $procName = $proc.ProcessName
             $procId = $proc.Id
             Write-Host "  停止 Python 进程 ID: $procId" -ForegroundColor Gray
+            Stop-Process -Id $procId -Force -ErrorAction Stop
+        } catch {
+            Write-Host "  无法停止进程 ID: $($proc.Id)" -ForegroundColor Yellow
+        }
+    }
+}
+
+# 方法2b：强制停止所有 Python3 进程
+Write-Host "  检查 Python3 进程..." -ForegroundColor Gray
+$python3Procs = Get-Process -Name python3 -ErrorAction SilentlyContinue
+if ($python3Procs) {
+    foreach ($proc in $python3Procs) {
+        try {
+            $procName = $proc.ProcessName
+            $procId = $proc.Id
+            Write-Host "  停止 Python3 进程 ID: $procId" -ForegroundColor Gray
+            Stop-Process -Id $procId -Force -ErrorAction Stop
+        } catch {
+            Write-Host "  无法停止进程 ID: $($proc.Id)" -ForegroundColor Yellow
+        }
+    }
+}
+
+# 方法2c：强制停止所有 uvicorn 进程
+Write-Host "  检查 uvicorn 进程..." -ForegroundColor Gray
+$uvicornProcs = Get-Process -Name uvicorn -ErrorAction SilentlyContinue
+if ($uvicornProcs) {
+    foreach ($proc in $uvicornProcs) {
+        try {
+            $procName = $proc.ProcessName
+            $procId = $proc.Id
+            Write-Host "  停止 uvicorn 进程 ID: $procId" -ForegroundColor Gray
             Stop-Process -Id $procId -Force -ErrorAction Stop
         } catch {
             Write-Host "  无法停止进程 ID: $($proc.Id)" -ForegroundColor Yellow

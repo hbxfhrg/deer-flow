@@ -115,6 +115,316 @@ public class Report {
     
     // Getters & Setters
 }
+
+/**
+ * API 客户端类 - 封装对练系统 REST API 调用
+ */
+public class PracticeApiClient {
+    
+    private static final String BASE_URL = "http://localhost:8000/api/roleplay";
+    private HttpClient httpClient;
+    private ObjectMapper objectMapper;
+    
+    public PracticeApiClient() {
+        this.httpClient = HttpClient.newHttpClient();
+        this.objectMapper = new ObjectMapper();
+        this.objectMapper.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
+    }
+    
+    /**
+     * 开始对练
+     * @param request 开始对练请求
+     * @return 开始对练响应
+     */
+    public PracticeStartResponse practiceStart(PracticeStartRequest request) {
+        String url = BASE_URL + "/practice/start";
+        try {
+            String jsonBody = objectMapper.writeValueAsString(request);
+            
+            HttpRequest httpRequest = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                .build();
+            
+            HttpResponse<String> response = httpClient.send(httpRequest, 
+                HttpResponse.BodyHandlers.ofString());
+            
+            if (response.statusCode() != 200) {
+                throw new PracticeException("API调用失败，状态码: " + response.statusCode());
+            }
+            
+            return objectMapper.readValue(response.body(), PracticeStartResponse.class);
+            
+        } catch (Exception e) {
+            throw new PracticeException("调用practiceStart失败: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * 对话轮次
+     * @param request 对话轮次请求
+     * @return 对话轮次响应
+     */
+    public PracticeTurnResponse practiceTurn(PracticeTurnRequest request) {
+        String url = BASE_URL + "/practice/turn";
+        try {
+            String jsonBody = objectMapper.writeValueAsString(request);
+            
+            HttpRequest httpRequest = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                .build();
+            
+            HttpResponse<String> response = httpClient.send(httpRequest, 
+                HttpResponse.BodyHandlers.ofString());
+            
+            if (response.statusCode() != 200) {
+                String errorMsg = parseErrorMessage(response.body());
+                throw new PracticeException(errorMsg, response.statusCode());
+            }
+            
+            return objectMapper.readValue(response.body(), PracticeTurnResponse.class);
+            
+        } catch (Exception e) {
+            throw new PracticeException("调用practiceTurn失败: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * 结束对练
+     * @param request 结束对练请求
+     * @return 结束对练响应
+     */
+    public PracticeEndResponse practiceEnd(PracticeEndRequest request) {
+        String url = BASE_URL + "/practice/end";
+        try {
+            String jsonBody = objectMapper.writeValueAsString(request);
+            
+            HttpRequest httpRequest = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                .build();
+            
+            HttpResponse<String> response = httpClient.send(httpRequest, 
+                HttpResponse.BodyHandlers.ofString());
+            
+            if (response.statusCode() != 200) {
+                String errorMsg = parseErrorMessage(response.body());
+                throw new PracticeException(errorMsg, response.statusCode());
+            }
+            
+            return objectMapper.readValue(response.body(), PracticeEndResponse.class);
+            
+        } catch (Exception e) {
+            throw new PracticeException("调用practiceEnd失败: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * 获取练习历史
+     * @param recordId 对练记录ID
+     * @return 对话历史列表
+     */
+    public List<DialogHistory> getPracticeHistory(Integer recordId) {
+        String url = BASE_URL + "/practice/" + recordId + "/history";
+        try {
+            HttpRequest httpRequest = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Content-Type", "application/json")
+                .GET()
+                .build();
+            
+            HttpResponse<String> response = httpClient.send(httpRequest, 
+                HttpResponse.BodyHandlers.ofString());
+            
+            if (response.statusCode() != 200) {
+                throw new PracticeException("获取历史失败，状态码: " + response.statusCode());
+            }
+            
+            return objectMapper.readValue(response.body(), 
+                new TypeReference<List<DialogHistory>>() {});
+            
+        } catch (Exception e) {
+            throw new PracticeException("调用getPracticeHistory失败: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * 获取练习记录列表
+     * @param params 查询参数
+     * @return 练习记录列表响应
+     */
+    public PracticeRecordsResponse getPracticeRecords(Map<String, String> params) {
+        StringBuilder urlBuilder = new StringBuilder(BASE_URL + "/practice-records");
+        if (params != null && !params.isEmpty()) {
+            urlBuilder.append("?");
+            boolean first = true;
+            for (Map.Entry<String, String> entry : params.entrySet()) {
+                if (!first) urlBuilder.append("&");
+                urlBuilder.append(entry.getKey()).append("=").append(entry.getValue());
+                first = false;
+            }
+        }
+        
+        try {
+            HttpRequest httpRequest = HttpRequest.newBuilder()
+                .uri(URI.create(urlBuilder.toString()))
+                .header("Content-Type", "application/json")
+                .GET()
+                .build();
+            
+            HttpResponse<String> response = httpClient.send(httpRequest, 
+                HttpResponse.BodyHandlers.ofString());
+            
+            if (response.statusCode() != 200) {
+                throw new PracticeException("获取记录列表失败，状态码: " + response.statusCode());
+            }
+            
+            return objectMapper.readValue(response.body(), PracticeRecordsResponse.class);
+            
+        } catch (Exception e) {
+            throw new PracticeException("调用getPracticeRecords失败: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * 解析错误消息
+     */
+    private String parseErrorMessage(String body) {
+        try {
+            Map<String, String> errorMap = objectMapper.readValue(body, Map.class);
+            return errorMap.getOrDefault("detail", "未知错误");
+        } catch (Exception e) {
+            return body;
+        }
+    }
+}
+
+/**
+ * 对话历史记录
+ */
+public class DialogHistory {
+    private Integer dialogId;        // 对话ID
+    private Integer recordId;        // 记录ID
+    private Integer speaker;         // 发言者（1=学员，2=AI客户）
+    private String contentType;      // 内容类型
+    private String content;          // 内容
+    private Integer roundNumber;     // 轮次
+    private Integer score;           // 得分
+    private String feedback;         // 反馈
+    private String createTime;       // 创建时间
+    
+    // Getters & Setters
+    public Integer getDialogId() { return dialogId; }
+    public void setDialogId(Integer dialogId) { this.dialogId = dialogId; }
+    public Integer getRecordId() { return recordId; }
+    public void setRecordId(Integer recordId) { this.recordId = recordId; }
+    public Integer getSpeaker() { return speaker; }
+    public void setSpeaker(Integer speaker) { this.speaker = speaker; }
+    public String getContentType() { return contentType; }
+    public void setContentType(String contentType) { this.contentType = contentType; }
+    public String getContent() { return content; }
+    public void setContent(String content) { this.content = content; }
+    public Integer getRoundNumber() { return roundNumber; }
+    public void setRoundNumber(Integer roundNumber) { this.roundNumber = roundNumber; }
+    public Integer getScore() { return score; }
+    public void setScore(Integer score) { this.score = score; }
+    public String getFeedback() { return feedback; }
+    public void setFeedback(String feedback) { this.feedback = feedback; }
+    public String getCreateTime() { return createTime; }
+    public void setCreateTime(String createTime) { this.createTime = createTime; }
+}
+
+/**
+ * 练习记录列表响应
+ */
+public class PracticeRecordsResponse {
+    private List<PracticeRecordInfo> records;  // 记录列表
+    
+    // Getters & Setters
+    public List<PracticeRecordInfo> getRecords() { return records; }
+    public void setRecords(List<PracticeRecordInfo> records) { this.records = records; }
+}
+
+/**
+ * 练习记录信息
+ */
+public class PracticeRecordInfo {
+    private Integer recordId;       // 记录ID
+    private Integer courseId;       // 课程ID
+    private String userName;        // 学员姓名
+    private Integer totalScore;     // 总得分
+    private String duration;        // 时长
+    private Integer dialogRounds;   // 对话轮次
+    private String courseName;      // 课程名称
+    private String sceneName;       // 场景名称
+    private String startTime;       // 开始时间
+    private String endTime;         // 结束时间
+    private String status;          // 状态（in_progress/completed）
+    
+    // Getters & Setters
+    public Integer getRecordId() { return recordId; }
+    public void setRecordId(Integer recordId) { this.recordId = recordId; }
+    public Integer getCourseId() { return courseId; }
+    public void setCourseId(Integer courseId) { this.courseId = courseId; }
+    public String getUserName() { return userName; }
+    public void setUserName(String userName) { this.userName = userName; }
+    public Integer getTotalScore() { return totalScore; }
+    public void setTotalScore(Integer totalScore) { this.totalScore = totalScore; }
+    public String getDuration() { return duration; }
+    public void setDuration(String duration) { this.duration = duration; }
+    public Integer getDialogRounds() { return dialogRounds; }
+    public void setDialogRounds(Integer dialogRounds) { this.dialogRounds = dialogRounds; }
+    public String getCourseName() { return courseName; }
+    public void setCourseName(String courseName) { this.courseName = courseName; }
+    public String getSceneName() { return sceneName; }
+    public void setSceneName(String sceneName) { this.sceneName = sceneName; }
+    public String getStartTime() { return startTime; }
+    public void setStartTime(String startTime) { this.startTime = startTime; }
+    public String getEndTime() { return endTime; }
+    public void setEndTime(String endTime) { this.endTime = endTime; }
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
+}
+
+/**
+ * 自定义异常类
+ */
+public class PracticeException extends RuntimeException {
+    private Integer statusCode;
+    
+    public PracticeException(String message) {
+        super(message);
+    }
+    
+    public PracticeException(String message, Integer statusCode) {
+        super(message);
+        this.statusCode = statusCode;
+    }
+    
+    public PracticeException(String message, Throwable cause) {
+        super(message, cause);
+    }
+    
+    public Integer getStatusCode() {
+        return statusCode;
+    }
+    
+    public String getErrorCode() {
+        if (statusCode != null) {
+            switch (statusCode) {
+                case 400: return "INVALID_REQUEST";
+                case 404: return "RECORD_NOT_FOUND";
+                case 500: return "SYSTEM_ERROR";
+                default: return "UNKNOWN_ERROR";
+            }
+        }
+        return "UNKNOWN_ERROR";
+    }
+}
 ```
 
 ---
@@ -295,17 +605,40 @@ record.setStartTime(new Date());
 courseRecordService.save(record);
 // recordId = 1001
 
-// 5. LLM生成开场白
-String customerMessage = llmService.generateOpening(course, scene);
-// customerMessage = "您好！我想了解一下你们的电动车，最近正在考虑换车呢~"
+// 5. LLM生成开场白（包含自我介绍）
+// 开场白生成规则：
+// - 先做简短自我介绍（说明身份，如：我是来买车的客户、我是面试者等）
+// - 自我介绍后自然过渡到第一个问题
+// - 问题必须与当前考核维度相关
+String firstCategory = getCurrentCategory(scene, 1, recordId);
+// firstCategory = "智能驾驶"（随机排序后的第一个维度）
+
+String customerMessage = llmService.generateOpening(scene, totalRounds, firstCategory);
+// customerMessage = "您好！我是来看车的客户，最近在考虑换电动车。能先介绍一下这款车的智能驾驶功能吗？"
 ```
 
 **返回结果：**
 ```java
 recordId = 1001
-customerMessage = "您好！我想了解一下你们的电动车，最近正在考虑换车呢~"
+customerMessage = "您好！我是来看车的客户，最近在考虑换电动车。能先介绍一下这款车的智能驾驶功能吗？"
 totalRounds = 5
 ```
+
+**开场白格式说明：**
+
+开场白采用"自我介绍 + 问题"的形式，使对话更加自然流畅：
+
+| 场景类型 | 开场白示例 |
+|----------|----------|
+| 汽车销售 | "您好！我是来看车的客户，最近在考虑换电动车。能先介绍一下这款车的智能驾驶功能吗？" |
+| 面试场景 | "你好，我是面试官陈翔。请先介绍一下你申请的职位和相关工作经验。" |
+| 产品咨询 | "你好，我想了解一下你们的产品。这款产品的核心优势是什么？" |
+
+**开场白生成逻辑：**
+1. 根据场景描述确定客户身份（如：购车客户、面试者、咨询者等）
+2. 生成简短的自我介绍（1-2句话）
+3. 根据当前考核维度生成第一个开放性问题
+4. 将自我介绍与问题自然衔接
 
 ---
 
@@ -615,7 +948,240 @@ if (isComplete) {
 
 ---
 
-## 六、错误处理示例
+## 六、JSON 解析错误处理机制
+
+### 6.1 问题背景
+
+在对练过程中，LLM（大语言模型）可能返回格式不正确的 JSON 数据，导致解析失败。为确保系统稳定性，后端实现了**智能环形重试机制**，包含以下优化：
+
+- **错误类型识别**：根据 JSON 解析错误类型选择最佳修复策略
+- **智能步骤排序**：根据成功率动态调整策略执行顺序
+
+### 6.2 智能重试策略
+
+**每轮按优化后的顺序执行修复策略，最多走3轮：**
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                       环形重试流程（最多3轮）                           │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   基础解析失败                                                          │
+│        ↓                                                               │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │                     第1轮重试                                   │  │
+│   │  ┌────────────┐  ┌────────────┐  ┌────────────┐               │  │
+│   │  │ 步骤1: Py  │→ │ 步骤2: LLM  │→ │ 步骤3: LLM  │               │  │
+│   │  │ 代码修复   │  │ 格式修复   │  │ 重新生成   │               │  │
+│   │  └────────────┘  └────────────┘  └────────────┘               │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│        ↓ (全部失败)                                                     │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │                     第2轮重试                                   │  │
+│   │  ┌────────────┐  ┌────────────┐  ┌────────────┐               │  │
+│   │  │ 步骤1: Py  │→ │ 步骤2: LLM  │→ │ 步骤3: LLM  │               │  │
+│   │  │ 代码修复   │  │ 格式修复   │  │ 重新生成   │               │  │
+│   │  └────────────┘  └────────────┘  └────────────┘               │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│        ↓ (全部失败)                                                     │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │                     第3轮重试                                   │  │
+│   │  ┌────────────┐  ┌────────────┐  ┌────────────┐               │  │
+│   │  │ 步骤1: Py  │→ │ 步骤2: LLM  │→ │ 步骤3: LLM  │               │  │
+│   │  │ 代码修复   │  │ 格式修复   │  │ 重新生成   │               │  │
+│   │  └────────────┘  └────────────┘  └────────────┘               │  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│        ↓ (全部失败)                                                     │
+│   返回错误提示："程序出错了，请稍后再试。"                               │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### 6.3 核心函数说明
+
+| 函数名 | 功能说明 | 返回类型 |
+|--------|----------|----------|
+| `_parse_json_from_text` | 基础解析：提取 markdown 代码块中的 JSON | `String` |
+| `_parse_json_with_retry` | 智能重试主入口：错误识别 + 策略排序 + 最多3轮重试 | `Dict` |
+| `_classify_json_error` | 错误类型识别：根据错误消息判断错误类型 | `String` |
+| `_get_optimized_strategy_order` | 智能排序：根据错误类型和成功率生成最优策略顺序 | `List` |
+| `_fix_json_with_code` | Python 代码修复：修复缺引号、缺逗号、缺括号等常见错误 | `String \| None` |
+| `_fix_json_format` | LLM 格式修复：将报错 JSON 送入 LLM 修复格式 | `String \| None` |
+| `_regenerate_json` | LLM 重新生成：将完整会话送入 LLM 重新生成 JSON | `String \| None` |
+
+### 6.4 错误类型识别
+
+#### 6.4.1 错误类型分类
+
+| 错误类型 | 识别特征 | 说明 |
+|----------|----------|------|
+| `missing_quote` | `property name`、`double quote` | 键名缺少引号 |
+| `missing_comma` | `expecting ','` | 缺少逗号分隔符 |
+| `missing_bracket` | `unexpected end of json` | 缺少闭合括号 `}` 或 `]` |
+| `format_mess` | `invalid`、`multiple` | 格式混乱，多种错误混合 |
+| `content_empty` | `null`、`empty` | JSON 结构正确但数据为空 |
+| `unknown` | 其他情况 | 无法识别的错误类型 |
+
+#### 6.4.2 错误类型与推荐策略映射
+
+```python
+_ERROR_TYPE_STRATEGIES = {
+    "missing_quote": ["py_fix", "llm_fix", "llm_regen"],     # 缺引号：Py修复最有效
+    "missing_comma": ["py_fix", "llm_fix", "llm_regen"],     # 缺逗号：Py修复最有效
+    "missing_bracket": ["py_fix", "llm_fix", "llm_regen"],   # 缺括号：Py修复最有效
+    "format_mess": ["llm_fix", "llm_regen", "py_fix"],       # 格式混乱：LLM修复更有效
+    "content_empty": ["llm_regen", "llm_fix", "py_fix"],     # 内容缺失：重新生成最有效
+    "unknown": ["llm_fix", "llm_regen", "py_fix"],           # 未知错误：优先LLM
+}
+```
+
+### 6.5 智能步骤排序
+
+#### 6.5.1 策略成功率配置
+
+```python
+_REPAIR_STRATEGY_SUCCESS_RATES = {
+    "py_fix": 0.75,    # Python代码修复成功率
+    "llm_fix": 0.85,   # LLM格式修复成功率
+    "llm_regen": 0.9,  # LLM重新生成成功率
+}
+```
+
+#### 6.5.2 排序算法
+
+1. 根据错误类型获取推荐策略列表
+2. 结合成功率配置进行二次排序
+3. 最终按成功率从高到低执行
+
+**示例**：
+
+| 错误类型 | 推荐策略 | 排序后顺序 |
+|----------|----------|------------|
+| `missing_quote` | py_fix, llm_fix, llm_regen | llm_regen (0.9) → llm_fix (0.85) → py_fix (0.75) |
+| `format_mess` | llm_fix, llm_regen, py_fix | llm_regen (0.9) → llm_fix (0.85) → py_fix (0.75) |
+
+### 6.6 智能重试流程详解
+
+**每轮按优化后的顺序执行修复策略，最多走3轮。**
+
+**步骤1：基础解析 + 错误类型识别**
+
+```python
+cleaned_text = _parse_json_from_text(raw_text)
+error_type = "unknown"
+
+try:
+    result = json.loads(cleaned_text)
+    if isinstance(result, dict):
+        return result  # 基础解析成功，直接返回
+except json.JSONDecodeError as e:
+    # 识别错误类型
+    error_type = _classify_json_error(str(e))
+    logger.warning(f"【JSON解析失败】错误类型: {error_type}, 错误消息: {e}")
+```
+
+**步骤2：获取优化后的策略顺序**
+
+```python
+# 根据错误类型和成功率获取最优策略顺序
+strategy_order = _get_optimized_strategy_order(error_type)
+# 示例：error_type = "missing_quote" → strategy_order = ["llm_regen", "llm_fix", "py_fix"]
+```
+
+**步骤3：智能重试循环（最多3轮）**
+
+```python
+for round_num in range(1, max_rounds + 1):
+    for strategy in strategy_order:
+        if strategy == "py_fix":
+            fixed_json = _fix_json_with_code(cleaned_text)
+        elif strategy == "llm_fix":
+            fixed_json = await _fix_json_format(cleaned_text, model_name)
+        elif strategy == "llm_regen":
+            fixed_json = await _regenerate_json(text, model_name)
+            if fixed_json:
+                fixed_json = _parse_json_from_text(fixed_json)
+        
+        if fixed_json:
+            result = json.loads(fixed_json)
+            if isinstance(result, dict):
+                return result  # 修复成功，直接返回
+```
+
+**最终降级处理**
+
+```python
+# 3轮全部失败，返回错误提示
+return {
+    "dimension_scores": {},
+    "summary": "程序出错了，请稍后再试。",
+    "strengths": [],
+    "improvements": [],
+}
+```
+
+**执行流程图**
+
+```
+基础解析失败
+    ↓
+识别错误类型（如：missing_quote）
+    ↓
+获取优化策略顺序（如：llm_regen → llm_fix → py_fix）
+    ↓
+第1轮：按顺序执行策略
+    ↓ (全部失败)
+第2轮：按顺序执行策略
+    ↓ (全部失败)
+第3轮：按顺序执行策略
+    ↓ (全部失败)```
+返回错误提示
+```
+
+### 6.7 Python 代码修复能力
+
+`_fix_json_with_code` 函数能够自动修复以下常见 JSON 格式错误：
+
+| 错误类型 | 示例 | 修复后 |
+|----------|------|--------|
+| 键名缺少引号 | `{name: "test"}` | `{"name": "test"}` |
+| 缺少闭合括号 | `{"data": [1, 2, 3` | `{"data": [1, 2, 3]}` |
+| 字符串缺少闭合引号 | `{"msg": "hello}` | `{"msg": "hello"}` |
+
+### 6.6 错误日志示例
+
+```
+# 基础解析失败
+WARNING - 【JSON解析失败】第1轮-基础解析: Expecting ',' delimiter: line 18 column 3
+
+# 第1轮重试（LLM修复）失败
+WARNING - 【JSON修复失败】第1轮: xxx
+
+# 第2轮重试（重新生成）失败
+WARNING - 【JSON修复失败】第2轮: xxx
+
+# 第3轮重试（代码修复）失败
+WARNING - 【JSON修复失败】第3轮: xxx
+
+# 最终失败
+ERROR - 【JSON解析完全失败】经过3轮重试后仍无法解析
+ERROR - 原始文本: {"dimension_scores": {...
+```
+
+### 6.9 设计原则
+
+| 原则 | 说明 |
+|------|------|
+| **环形重试** | 按顺序尝试多种修复策略，形成闭环 |
+| **容错性** | 即使 LLM 返回格式错误，系统也能正常运行 |
+| **可观测性** | 详细记录每次失败尝试，便于排查问题 |
+| **渐进式降级** | 优先尝试智能修复，最后才降级到默认值 |
+| **有限重试** | 最多重试 3 轮，避免无限循环 |
+| **多样性策略** | 综合利用 LLM 修复、重新生成、代码修复三种策略 |
+
+---
+
+## 七、错误处理示例
 
 ```java
 try {
