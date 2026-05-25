@@ -181,10 +181,19 @@ export const api = {
 
   // 练习记录接口
   practiceRecords: {
-    async list(userId?: string, sceneId?: string): Promise<any[]> {
+    async list(
+      courseId?: number, 
+      userName?: string,
+      startTime?: string,
+      endTime?: string,
+      status?: string
+    ): Promise<any[]> {
       const params: Record<string, string> = {};
-      if (userId) params.user_id = userId;
-      if (sceneId) params.scene_id = sceneId;
+      if (courseId) params.course_id = courseId.toString();
+      if (userName) params.user_name = userName;
+      if (startTime) params.start_time = startTime;
+      if (endTime) params.end_time = endTime;
+      if (status) params.status = status;
       const response = await axiosInstance.get('/roleplay/practice-records', { params });
       return response.data.records;
     },
@@ -231,6 +240,11 @@ export const api = {
         courseId,
         userName: user?.user_name || 'anonymous',
       });
+      return response.data;
+    },
+    
+    async history(recordId: number): Promise<any[]> {
+      const response = await axiosInstance.get(`/roleplay/practice/${recordId}/history`);
       return response.data;
     },
     

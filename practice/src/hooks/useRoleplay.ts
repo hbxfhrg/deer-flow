@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import api from '@/api';
 import type { Message, Evaluation, EvaluationReport } from '@/types';
 
-export function useRoleplay(courseId: number | null) {
+export function useRoleplay(courseId: number | null, existingRecordId: number | null = null) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [recordId, setRecordId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -26,29 +26,62 @@ export function useRoleplay(courseId: number | null) {
 
   // 开始对练
   const initConversation = useCallback(async () => {
-    if (!courseId) return;
+    if (!courseId && !existingRecordId) return;
     setIsLoading(true);
     setIsComplete(false);
     setReport(null);
     setEvaluation(null);
     try {
-      const res = await api.practice.start(courseId);
-      setRecordId(res.recordId);
-      setTotalRounds(res.totalRounds);
-      setCurrentRound(1);
-      const aiMsg: Message = {
-        id: `ai-${Date.now()}`,
-        role: 'assistant',
-        content: res.customerMessage,
-        createdAt: new Date().toISOString(),
-      };
-      setMessages([aiMsg]);
+      if (existingRecordId) {
+        // 从历史记录继续
+        await resumeConversation(existingRecordId);
+      } else {
+        // 开始新对练
+        const res = await api.practice.start(courseId!);
+        setRecordId(res.recordId);
+        setTotalRounds(res.totalRounds);
+        setCurrentRound(1);
+        const aiMsg: Message = {
+          id: `ai-${Date.now()}`,
+          role: 'assistant',
+          content: res.customerMessage,
+          createdAt: new Date().toISOString(),
+        };
+        setMessages([aiMsg]);
+      }
     } catch (e) {
       console.error('Failed to start practice:', e);
     } finally {
       setIsLoading(false);
     }
-  }, [courseId]);
+  }, [courseId, existingRecordId]);
+
+  // 从历史记录恢复对话
+  const resumeConversation = useCallback(async (existingRecordId: number) => {
+    try {
+      // 获取对话历史
+      const history = await api.practice.history(existingRecordId);
+      const loadedMessages: Message[] = history.map((item: any, index: number) => ({
+        id: `msg-${index}`,
+        role: item.speaker === 1 ? 'user' : 'assistant',
+        content: item.content,
+        createdAt: item.create_time || new Date().toISOString(),
+      }));
+      setMessages(loadedMessages);
+      setRecordId(existingRecordId);
+      
+      // 获取最后一条消息的轮次作为当前轮次
+      if (history.length > 0) {
+        const lastRound = history[history.length - 1].round_number;
+        setCurrentRound(lastRound);
+      }
+      
+      // 默认总轮次为5（自由式对练）
+      setTotalRounds(5);
+    } catch (e) {
+      console.error('Failed to resume conversation:', e);
+    }
+  }, []);
 
   // 发送消息
   const sendMessage = useCallback(async (content: string) => {

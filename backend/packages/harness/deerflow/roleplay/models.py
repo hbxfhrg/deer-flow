@@ -110,7 +110,6 @@ class CourseRecordRow(RoleplayBase):
     nick_name: Mapped[str] = mapped_column(String(200), nullable=True)
     summary: Mapped[str] = mapped_column(Text, nullable=True)
     conversation_id: Mapped[str] = mapped_column(String(100), nullable=True)
-    courese_name: Mapped[str] = mapped_column(String(255), nullable=True)  # 注意：字段名拼写错误，与数据库一致
     scene_name: Mapped[str] = mapped_column(String(255), nullable=True)
     course_type: Mapped[int] = mapped_column(Integer, nullable=True)
     accord_finish: Mapped[int] = mapped_column(Integer, nullable=True)

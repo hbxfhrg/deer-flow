@@ -422,18 +422,26 @@ async def update_evaluation(eval_id: str, evaluation: EvaluationUpdate):
     return {"message": "Evaluation updated successfully"}
 
 @router.get("/practice-records", summary="获取练习记录列表")
-async def get_practice_records(user_name: Optional[str] = None, course_id: Optional[int] = None):
-    records = await PracticeRecordService.get_practice_records(user_name, course_id)
+async def get_practice_records(
+    user_name: Optional[str] = None, 
+    course_id: Optional[int] = None,
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None,
+    status: Optional[str] = None
+):
+    records = await PracticeRecordService.get_practice_records(user_name, course_id, start_time, end_time, status)
     return {"records": [
         {
-            "recordId": r.record_id,
-            "courseId": r.course_id,
-            "userName": r.user_name,
-            "totalScore": r.total_score,
-            "duration": r.duration,
-            "dialogRounds": r.dialog_rounds,
-            "startTime": r.start_time.isoformat() if r.start_time else None,
-            "endTime": r.end_time.isoformat() if r.end_time else None,
+            "recordId": r["record_id"],
+            "courseId": r["course_id"],
+            "userName": r["user_name"],
+            "totalScore": r["total_score"],
+            "duration": r["duration"],
+            "dialogRounds": r["dialog_rounds"],
+            "courseName": r["course_name"],
+            "sceneName": r["scene_name"],
+            "startTime": r["start_time"],
+            "endTime": r["end_time"],
         } for r in records
     ]}
 

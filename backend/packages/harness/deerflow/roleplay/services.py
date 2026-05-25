@@ -191,7 +191,7 @@ class CourseService:
             )
             course = result.scalar_one_or_none()
             if course:
-                course.status = 0
+                await session.delete(course)  # 物理删除
                 await session.commit()
                 return True
             return False
@@ -257,16 +257,56 @@ class EvaluationService:
 
 class PracticeRecordService:
     @staticmethod
-    async def get_practice_records(user_name: str = None, course_id: int = None):
+    async def get_practice_records(
+        user_name: str = None, 
+        course_id: int = None,
+        start_time: str = None,
+        end_time: str = None,
+        status: str = None
+    ):
         async with get_db() as session:
-            query = select(PracticeRecordRow)
+            query = (
+                select(
+                    PracticeRecordRow,
+                    CourseRow.course_name,
+                    SceneRow.scene_name
+                )
+                .outerjoin(CourseRow, PracticeRecordRow.course_id == CourseRow.course_id)
+                .outerjoin(SceneRow, CourseRow.scene_id == SceneRow.scene_id)
+            )
             if user_name:
                 query = query.where(PracticeRecordRow.user_name == user_name)
             if course_id:
                 query = query.where(PracticeRecordRow.course_id == course_id)
+            if start_time:
+                query = query.where(PracticeRecordRow.start_time >= start_time)
+            if end_time:
+                query = query.where(PracticeRecordRow.start_time <= end_time)
+            if status == "completed":
+                query = query.where(PracticeRecordRow.end_time.isnot(None))
+            elif status == "in_progress":
+                query = query.where(PracticeRecordRow.end_time.is_(None))
             query = query.order_by(desc(PracticeRecordRow.start_time))
             result = await session.execute(query)
-            return result.scalars().all()
+            
+            records = []
+            for row in result.all():
+                record = row[0]
+                record_dict = {
+                    "record_id": record.record_id,
+                    "course_id": record.course_id,
+                    "user_name": record.user_name,
+                    "total_score": record.total_score,
+                    "duration": record.duration,
+                    "dialog_rounds": record.dialog_rounds,
+                    "report_data": record.report_data,
+                    "start_time": record.start_time.isoformat() if record.start_time else None,
+                    "end_time": record.end_time.isoformat() if record.end_time else None,
+                    "course_name": row[1] or "未知课程",
+                    "scene_name": row[2] or "未知场景",
+                }
+                records.append(record_dict)
+            return records
 
     @staticmethod
     async def get_practice_record(record_id: int):

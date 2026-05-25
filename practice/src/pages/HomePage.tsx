@@ -1,17 +1,19 @@
 import { useState } from 'react';
-import { Play, BookOpen, Settings, User } from 'lucide-react';
+import { Play, BookOpen, History, Settings, User } from 'lucide-react';
 import { StartPage } from './StartPage';
 import { ScenePage } from './ScenePage';
 import { CoursePage } from './CoursePage';
+import { HistoryPage } from './HistoryPage';
 import { ProfilePage } from './ProfilePage';
 
-type TabType = 'start' | 'course' | 'scene' | 'profile';
+type TabType = 'start' | 'course' | 'history' | 'scene' | 'profile';
 
 export function HomePage() {
   const [activeTab, setActiveTab] = useState<TabType>('start');
 
   const tabs = [
     { id: 'start' as TabType, label: '开始练习', icon: Play },
+    { id: 'history' as TabType, label: '练习历史', icon: History },
     { id: 'course' as TabType, label: '练习课程', icon: BookOpen },
     { id: 'scene' as TabType, label: '场景设定', icon: Settings },
     { id: 'profile' as TabType, label: '我的', icon: User },
@@ -23,6 +25,8 @@ export function HomePage() {
         return <StartPage />;
       case 'course':
         return <CoursePage />;
+      case 'history':
+        return <HistoryPage />;
       case 'scene':
         return <ScenePage />;
       case 'profile':

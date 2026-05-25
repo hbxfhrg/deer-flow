@@ -13,6 +13,7 @@ export function ChatPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const courseId = searchParams.get('courseId');
+  const recordId = searchParams.get('recordId');
   const [courseInfo, setCourseInfo] = useState<Course | null>(null);
 
   // 加载课程信息
@@ -37,7 +38,17 @@ export function ChatPage() {
     sendMessage,
     endPractice,
     messagesEndRef,
-  } = useRoleplay(courseId ? Number(courseId) : null);
+  } = useRoleplay(
+    courseId ? Number(courseId) : null,
+    recordId ? Number(recordId) : null
+  );
+
+  // 如果有recordId（从历史记录进入），自动初始化对话
+  useEffect(() => {
+    if (recordId) {
+      initConversation();
+    }
+  }, [recordId, initConversation]);
 
   return (
     <div className="h-full flex flex-col bg-gray-50">
@@ -81,34 +92,44 @@ export function ChatPage() {
           {/* 开始按钮 */}
           {messages.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center px-4">
-              {/* 场景信息 */}
-              {courseInfo?.sceneName && (
-                <div className="w-full max-w-md text-center mb-6">
-                  <h2 className="text-xl font-bold text-gray-800 mb-2">{courseInfo.sceneName}</h2>
-                  {courseInfo.sceneDescription && (
-                    <p className="text-sm text-gray-500">{courseInfo.sceneDescription}</p>
+              {/* 如果是从历史记录进入，显示加载状态 */}
+              {recordId && isLoading ? (
+                <div className="flex flex-col items-center">
+                  <div className="w-12 h-12 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                  <p className="text-gray-500">正在加载对话历史...</p>
+                </div>
+              ) : (
+                <>
+                  {/* 场景信息 */}
+                  {courseInfo?.sceneName && (
+                    <div className="w-full max-w-md text-center mb-6">
+                      <h2 className="text-xl font-bold text-gray-800 mb-2">{courseInfo.sceneName}</h2>
+                      {courseInfo.sceneDescription && (
+                        <p className="text-sm text-gray-500">{courseInfo.sceneDescription}</p>
+                      )}
+                    </div>
                   )}
-                </div>
-              )}
 
-              <div className="w-20 h-20 bg-primary-100 rounded-full flex items-center justify-center mb-4">
-                <div className="w-8 h-8 text-primary-500">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                  </svg>
-                </div>
-              </div>
-              <h2 className="text-xl font-semibold text-gray-800 mb-2">准备开始对练</h2>
-              <p className="text-sm text-gray-500 text-center mb-6">
-                点击下方按钮开始您的练习之旅
-              </p>
-              <button
-                onClick={initConversation}
-                disabled={isLoading}
-                className="px-8 py-3 bg-primary-500 text-white rounded-xl font-medium hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoading ? '初始化中...' : '开始对练'}
-              </button>
+                  <div className="w-20 h-20 bg-primary-100 rounded-full flex items-center justify-center mb-4">
+                    <div className="w-8 h-8 text-primary-500">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                      </svg>
+                    </div>
+                  </div>
+                  <h2 className="text-xl font-semibold text-gray-800 mb-2">准备开始对练</h2>
+                  <p className="text-sm text-gray-500 text-center mb-6">
+                    点击下方按钮开始您的练习之旅
+                  </p>
+                  <button
+                    onClick={initConversation}
+                    disabled={isLoading}
+                    className="px-8 py-3 bg-primary-500 text-white rounded-xl font-medium hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isLoading ? '初始化中...' : '开始对练'}
+                  </button>
+                </>
+              )}
             </div>
           ) : (
             <div className="flex-1 overflow-y-auto px-4 py-4">

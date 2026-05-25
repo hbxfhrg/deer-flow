@@ -8,6 +8,7 @@
 
 import json
 import re
+import random
 from datetime import UTC, datetime
 
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
@@ -79,10 +80,11 @@ CUSTOMER_SYSTEM_PROMPT = """系统角色：你正在模拟一位真实客户，�
 
 【你的人物设定】
 - 说话自然、口语化，避免 AI 味
-- 可能会犹豫、追问、表达疑虑
-- 根据对方的回复自然地推进对话
+- 先回应对方上一条回答（简要总结或表达理解），再自然过渡到下一个问题
+- 可以表现出犹豫、追问、表达疑虑或感兴趣
+- 根据对方的回复自然地推进对话，保持对话连贯性
 - 不要主动结束对话
-- 你的回复要简短，1-3句话即可
+- 你的回复要简短，2-4句话即可
 - **关键要求**：提出**开放性问题**，鼓励学员详细阐述，不要问只能用"是"或"否"回答的问题
 
 【当前对话轮次】：第 {round} / {total_rounds} 轮
@@ -100,7 +102,11 @@ CUSTOMER_SYSTEM_PROMPT = """系统角色：你正在模拟一位真实客户，�
 - "充电速度怎么样？支持哪些充电方式？"
 - "电机的动力性能如何？加速表现怎么样？"
 
-请根据以上设定，生成你对学员下一句话的回复。只输出回复内容，不要加任何前缀或说明。"""
+例如，回应学员回答后再提问：
+- 学员说："我们的车续航里程很长。"
+- 你可以回答："续航长确实是个重要优势，能具体说说在不同路况下的实际表现吗？"
+
+请根据以上设定，生成你对学员上一句话的回复。先简要回应，再提出相关问题。只输出回复内容，不要加任何前缀或说明。"""
 
 
 EVALUATION_SYSTEM_PROMPT = """系统角色：你是一位专业的对练教练，负责评估学员的对话表现。
@@ -182,8 +188,8 @@ def _build_dialog_history(dialogs: list) -> str:
     return "\n".join(lines)
 
 
-def _get_current_category(scene: SceneRow, round_num: int) -> str:
-    """根据轮次获取当前需要考察的考核维度"""
+def _get_current_category(scene: SceneRow, round_num: int, seed: int = 0) -> str:
+    """根据轮次获取当前需要考察的考核维度（使用 seed 保证同一次对练维度顺序一致）"""
     if not scene.exam_categories:
         return ""
     
@@ -193,6 +199,12 @@ def _get_current_category(scene: SceneRow, round_num: int) -> str:
     
     if not categories:
         return ""
+    
+    # 使用 seed 进行确定性随机打乱（保证同一次对练维度顺序一致）
+    if seed != 0 and len(categories) > 1:
+        rng = random.Random(seed)
+        categories = categories.copy()
+        rng.shuffle(categories)
     
     # 根据轮次返回对应的维度（轮次从1开始）
     index = round_num - 1
@@ -300,8 +312,8 @@ class PracticeService:
         """
         开始对练：
         1. 加载课程和关联场景配置
-        2. 创建 pract_record（DB 自增 record_id）
-        3. LLM 生成开场白
+        2. 创建 pract_course_record（DB 自增 record_id）
+        3. LLM 生成开场白（使用 record_id 作为随机种子打乱维度顺序）
         4. 开场白写入 pract_dialog_detail（speaker=2, round=1）
         5. 返回 record_id + 开场白内容
         """
@@ -327,7 +339,6 @@ class PracticeService:
                 scene_id=scene.scene_id,
                 start_time=datetime.now(UTC),
                 user_name=user_name,
-                courese_name=course.course_name,  # 注意：字段名拼写与数据库一致
                 scene_name=scene.scene_name,
                 course_type=course.course_type,
                 practice_mode=course.practice_mode,
@@ -338,8 +349,8 @@ class PracticeService:
             
             record_id = course_record.id  # 使用 course_record 的 id 作为 record_id
 
-        # 3. LLM 生成开场白（第1轮对应第一个考核维度）
-        first_category = _get_current_category(scene, 1)
+        # 3. LLM 生成开场白（第1轮对应第一个随机后的考核维度，使用 record_id 作为种子）
+        first_category = _get_current_category(scene, 1, record_id)
         opening_message = await _generate_customer_reply(scene, [], 1, total_rounds, first_category)
 
         # 4. 写入 dialog_detail
@@ -360,12 +371,12 @@ class PracticeService:
         }
 
     @staticmethod
-    async def turn(record_id: int, user_message: str) -> dict:
+    async def turn(cls, record_id: int, user_message: str) -> dict:
         """
-        处理一轮对话：
-        1. 查询 record 和场景配置
-        2. 学员话术写入 pract_dialog_detail（speaker=1）
-        3. 获取当前轮全部对话历史
+        对练对话轮次处理流程：
+        1. 加载记录、课程、场景
+        2. 写入学员话术（speaker=1）
+        3. 获取当前对话历史
         4. LLM 评估打分
         5. 写入 dialog_detail.score / .feedback
         6. 判断是否完成（dialog_rounds >= 场景设定的总轮数）
@@ -375,6 +386,15 @@ class PracticeService:
         8. 更新 dialog_rounds
         9. 返回：customer_message, evaluation, is_complete, round
         """
+        # 验证用户消息
+        user_message = user_message.strip()
+        if not user_message:
+            raise ValueError("消息内容不能为空")
+        
+        # 检查是否是无效消息（全是问号或特殊字符）
+        if re.match(r'^[?？,，\s]+$', user_message):
+            raise ValueError("无效的消息内容")
+        
         # 1. 加载记录、课程、场景
         record, course, scene = await _load_scene_by_record(record_id)
 
@@ -411,8 +431,8 @@ class PracticeService:
         # 3. 获取最新对话历史（用于评估上下文）
         all_dialogs = await DialogDetailService.get_dialogs_by_record(record_id)
 
-        # 4. LLM 评估打分（聚焦当前轮次的考核维度）
-        current_category = _get_current_category(scene, current_round)
+        # 4. LLM 评估打分（聚焦当前轮次的考核维度，使用 record_id 作为随机种子）
+        current_category = _get_current_category(scene, current_round, record_id)
         evaluation = await _evaluate_user_message(scene, all_dialogs, user_message, current_category)
 
         # 5. 写入评分到最新一条学员话术
@@ -480,9 +500,9 @@ class PracticeService:
                 "report": report,
             }
 
-        # 7. 生成下一轮客户回复（对应下一个考核维度）
+        # 7. 生成下一轮客户回复（对应下一个考核维度，使用 record_id 作为随机种子）
         next_round = current_round + 1
-        next_category = _get_current_category(scene, next_round)
+        next_category = _get_current_category(scene, next_round, record_id)
         customer_message = await _generate_customer_reply(scene, all_dialogs, next_round, total_rounds, next_category)
 
         await DialogDetailService.create_dialog({
