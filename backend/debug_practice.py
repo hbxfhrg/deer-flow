@@ -1,6 +1,6 @@
 import asyncio
 from deerflow.roleplay import init_roleplay_db, get_db, create_roleplay_tables
-from deerflow.roleplay.models import CourseRow, SceneRow, PracticeRecordRow, DialogDetailRow
+from deerflow.roleplay.models import CourseRow, SceneRow, DialogDetailRow
 from deerflow.roleplay.practice_service import PracticeService
 from deerflow.config.app_config import get_app_config
 

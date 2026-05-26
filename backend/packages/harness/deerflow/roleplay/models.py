@@ -71,25 +71,11 @@ class EvaluationRow(RoleplayBase):
     status: Mapped[str] = mapped_column(String(20), default="pending")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
-class PracticeRecordRow(RoleplayBase):
-    __tablename__ = "pract_record"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)  # 自增主键
-    record_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)  # 存储 pract_course_record 的 id，非自增
-    course_id: Mapped[int] = mapped_column(Integer, nullable=False)
-    user_name: Mapped[str] = mapped_column(String(50))
-    total_score: Mapped[float] = mapped_column(Float, nullable=True)
-    duration: Mapped[int] = mapped_column(Integer, nullable=True)  # 对练总时长（秒）
-    dialog_rounds: Mapped[int] = mapped_column(Integer, nullable=True)  # 实际对话轮数
-    report_data: Mapped[dict] = mapped_column(JSON, nullable=True)
-    start_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    end_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-
 class DialogDetailRow(RoleplayBase):
     __tablename__ = "pract_dialog_detail"
 
     dialog_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    record_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)  # 关联 pract_record.record_id (int)
+    record_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)  # 关联 pract_course_record.id (int)
     speaker: Mapped[int] = mapped_column(Integer, nullable=False)  # 1: 学员, 2: AI/客户
     content_type: Mapped[int] = mapped_column(Integer, nullable=False, default=1)  # 1: 文本
     content: Mapped[str] = mapped_column(Text, nullable=False)

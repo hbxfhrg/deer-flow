@@ -42,8 +42,11 @@ export function ResultPage() {
 
         // 尝试获取报告
         const reportResult = await api.practice.getReport(Number(recordId));
-        if (reportResult.success && reportResult.report) {
-          setReport(reportResult.report);
+        // 检查报告是否完成：success=true 且 report 存在 或者 status=completed
+        if ((reportResult.success && reportResult.report) || reportResult.status === 'completed') {
+          if (reportResult.report) {
+            setReport(reportResult.report);
+          }
           setIsReportGenerating(false);
         } else {
           // 报告正在生成，轮询等待
@@ -64,8 +67,11 @@ export function ResultPage() {
     const interval = setInterval(async () => {
       try {
         const reportResult = await api.practice.getReport(recordId);
-        if (reportResult.success && reportResult.report) {
-          setReport(reportResult.report);
+        // 检查报告是否完成：success=true 且 report 存在 或者 status=completed
+        if ((reportResult.success && reportResult.report) || reportResult.status === 'completed') {
+          if (reportResult.report) {
+            setReport(reportResult.report);
+          }
           setIsReportGenerating(false);
           clearInterval(interval);
         } else {

@@ -1,7 +1,7 @@
 import asyncio
 from datetime import datetime, UTC
 from deerflow.roleplay import init_roleplay_db, get_db
-from deerflow.roleplay.models import SceneRow, CourseRow, PracticeRecordRow, DialogDetailRow
+from deerflow.roleplay.models import SceneRow, CourseRow, DialogDetailRow
 
 async def create_test_data():
     # 使用与服务相同的配置初始化数据库

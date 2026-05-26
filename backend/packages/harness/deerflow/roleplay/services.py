@@ -8,7 +8,7 @@ import re
 from deerflow.roleplay.timezone_utils import now_local
 
 from deerflow.roleplay import get_db, get_session_factory
-from deerflow.roleplay.models import SceneRow, EvaluationRow, PracticeRecordRow, CourseRow, CourseRecordRow
+from deerflow.roleplay.models import SceneRow, EvaluationRow, CourseRow, CourseRecordRow
 
 # 驼峰命名转下划线命名（通用函数）
 def camel_to_snake(name: str) -> str:
@@ -311,16 +311,18 @@ class PracticeRecordService:
 
     @staticmethod
     async def get_practice_record(record_id: int):
+        """获取练习记录（从 pract_course_record 获取）"""
         async with get_db() as session:
             result = await session.execute(
-                select(PracticeRecordRow).where(PracticeRecordRow.record_id == record_id)
+                select(CourseRecordRow).where(CourseRecordRow.id == record_id)
             )
             return result.scalar_one_or_none()
 
     @staticmethod
     async def create_practice_record(data: dict):
+        """创建练习记录（使用 CourseRecordRow）"""
         async with get_db() as session:
-            record = PracticeRecordRow(
+            record = CourseRecordRow(
                 course_id=data["course_id"],
                 user_name=data["user_name"],
                 start_time=now_local(),
@@ -332,21 +334,20 @@ class PracticeRecordService:
 
     @staticmethod
     async def complete_practice_record(record_id: int, data: dict):
+        """完成练习记录（更新 CourseRecordRow）"""
         async with get_db() as session:
             result = await session.execute(
-                select(PracticeRecordRow).where(PracticeRecordRow.record_id == record_id)
+                select(CourseRecordRow).where(CourseRecordRow.id == record_id)
             )
             record = result.scalar_one_or_none()
             if record:
                 record.end_time = now_local()
-                if "dialog_rounds" in data:
-                    record.dialog_rounds = data["dialog_rounds"]
                 if "total_score" in data:
                     record.total_score = data["total_score"]
-                if "report_data" in data:
-                    record.report_data = data["report_data"]
-                if "duration" in data:
-                    record.duration = data["duration"]
+                if "summary" in data:
+                    record.summary = data["summary"]
+                if "accord_finish" in data:
+                    record.accord_finish = data["accord_finish"]
                 await session.commit()
                 await session.refresh(record)
             return record

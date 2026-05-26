@@ -19,8 +19,8 @@ from deerflow.roleplay.timezone_utils import now_local
 
 from deerflow.models import create_chat_model
 from deerflow.roleplay import get_db
-from deerflow.roleplay.models import SceneRow, CourseRow, PracticeRecordRow, DialogDetailRow, CourseRecordRow
-from deerflow.roleplay.services import SceneService, CourseService, PracticeRecordService, DialogDetailService
+from deerflow.roleplay.models import SceneRow, CourseRow, DialogDetailRow, CourseRecordRow
+from deerflow.roleplay.services import SceneService, CourseService, DialogDetailService
 
 logger = logging.getLogger(__name__)
 
@@ -864,20 +864,7 @@ class PracticeService:
             async with get_db() as session:
                 from sqlalchemy import update as sa_update
                 
-                # 创建 pract_record（在对练结束时创建）
-                practice_record = PracticeRecordRow(
-                    record_id=record_id,  # 存储 pract_course_record 的 id
-                    course_id=record.course_id,
-                    user_name=record.user_name,
-                    start_time=record.start_time,
-                    dialog_rounds=current_round,
-                    total_score=total_score,
-                    report_data=report,
-                    end_time=end_time,
-                )
-                session.add(practice_record)
-                
-                # 更新 pract_course_record
+                # 更新 pract_course_record（报告数据存储到 summary 字段）
                 await session.execute(
                     sa_update(CourseRecordRow)
                     .where(CourseRecordRow.id == record_id)
@@ -984,20 +971,7 @@ class PracticeService:
         async with get_db() as session:
             from sqlalchemy import update as sa_update
             
-            # 创建 pract_record（在对练结束时创建）
-            practice_record = PracticeRecordRow(
-                record_id=record_id,  # 存储 pract_course_record 的 id
-                course_id=record.course_id,
-                user_name=record.user_name,
-                start_time=record.start_time,
-                dialog_rounds=current_round,
-                total_score=total_score,
-                report_data=report,
-                end_time=end_time,
-            )
-            session.add(practice_record)
-            
-            # 更新 pract_course_record
+            # 更新 pract_course_record（报告数据存储到 summary 字段）
             await session.execute(
                 sa_update(CourseRecordRow)
                 .where(CourseRecordRow.id == record_id)
@@ -1043,21 +1017,30 @@ class PracticeService:
 
     @staticmethod
     async def get_report(record_id: int) -> dict:
-        """获取最终评估报告"""
+        """获取最终评估报告（从 pract_course_record 获取）"""
         from sqlalchemy import select as sa_select
 
         async with get_db() as session:
             result = await session.execute(
-                sa_select(PracticeRecordRow).where(PracticeRecordRow.record_id == record_id)
+                sa_select(CourseRecordRow).where(CourseRecordRow.id == record_id)
             )
             record = result.scalar_one_or_none()
             if not record:
                 raise ValueError(f"练习记录 {record_id} 不存在")
+            
+            # 判断报告是否已生成（通过检查 end_time 和 summary 是否存在）
+            is_completed = record.end_time is not None and record.summary is not None
+            
             return {
-                "record_id": record.record_id,
+                "success": True,
+                "record_id": record.id,
                 "total_score": record.total_score,
-                "dialog_rounds": record.dialog_rounds,
-                "report": record.report_data or {},
+                "summary": record.summary or "",
+                "status": "completed" if is_completed else "generating",
+                "report": {
+                    "summary": record.summary or "",
+                    "total_score": record.total_score or 0,
+                },
             }
 
     @staticmethod
