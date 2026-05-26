@@ -75,6 +75,9 @@ export function HistoryPage() {
     if (record.status === 'in_progress') {
       // 继续未完成的对话
       navigate(`/chat?recordId=${record.id}`);
+    } else {
+      // 已完成的练习，查看报告
+      navigate(`/result?recordId=${record.id}`);
     }
   };
 
