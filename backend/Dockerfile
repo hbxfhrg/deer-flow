@@ -1,101 +1,79 @@
-# Backend Dockerfile — multi-stage build
-# Stage 1 (builder): compiles native Python extensions with build-essential
-# Stage 2 (dev):     retains toolchain for dev containers (uv sync at startup)
-# Stage 3 (runtime): clean image without compiler toolchain for production
+# ================================================
+# DeerFlow 后端 Dockerfile（生产环境）
+# ================================================
 
-# UV source image (override for restricted networks that cannot reach ghcr.io)
-ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.7.20
-FROM ${UV_IMAGE} AS uv-source
+# 第一阶段：构建依赖
+FROM python:3.12-slim AS builder
 
-# ── Stage 1: Builder ──────────────────────────────────────────────────────────
-FROM python:3.12-slim-bookworm AS builder
+WORKDIR /app
 
-ARG NODE_MAJOR=22
-ARG APT_MIRROR
-ARG UV_INDEX_URL
-# Optional extras to install (e.g. "postgres" for PostgreSQL support)
-# Usage: docker build --build-arg UV_EXTRAS=postgres ...
-ARG UV_EXTRAS
+# 清理所有默认源配置，确保只使用国内源
+RUN rm -rf /etc/apt/sources.list.d/* /etc/apt/sources.list
+RUN echo "deb http://mirrors.aliyun.com/debian/ trixie main contrib non-free" > /etc/apt/sources.list \
+    && echo "deb http://mirrors.aliyun.com/debian/ trixie-updates main contrib non-free" >> /etc/apt/sources.list \
+    && echo "deb http://mirrors.aliyun.com/debian/ trixie-backports main contrib non-free" >> /etc/apt/sources.list \
+    && echo "deb http://mirrors.aliyun.com/debian-security/ trixie-security main contrib non-free" >> /etc/apt/sources.list
 
-# Optionally override apt mirror for restricted networks (e.g. APT_MIRROR=mirrors.aliyun.com)
-RUN if [ -n "${APT_MIRROR}" ]; then \
-      sed -i "s|deb.debian.org|${APT_MIRROR}|g" /etc/apt/sources.list.d/debian.sources 2>/dev/null || true; \
-      sed -i "s|deb.debian.org|${APT_MIRROR}|g" /etc/apt/sources.list 2>/dev/null || true; \
-    fi
-
-# Install build tools + Node.js (build-essential needed for native Python extensions)
-RUN apt-get update && apt-get install -y \
-    curl \
-    build-essential \
-    gnupg \
-    ca-certificates \
-    && mkdir -p /etc/apt/keyrings \
-    && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
-    && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_${NODE_MAJOR}.x nodistro main" > /etc/apt/sources.list.d/nodesource.list \
-    && apt-get update \
-    && apt-get install -y nodejs \
+# 安装系统依赖
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv (source image overridable via UV_IMAGE build arg)
-COPY --from=uv-source /uv /uvx /usr/local/bin/
+# 更换 pip 国内源
+RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 
-# Set working directory
+# 复制所有必要文件
+COPY pyproject.toml .
+COPY packages/harness/pyproject.toml packages/harness/
+COPY packages/harness/deerflow packages/harness/deerflow/
+
+# 安装所有依赖（包括 harness 包）
+RUN pip install --upgrade pip \
+    && pip install --timeout=120 --retries=3 packages/harness asyncmy \
+    && pip install --timeout=120 --retries=3 .
+
+# 第二阶段：运行环境
+FROM python:3.12-slim
+
 WORKDIR /app
 
-# Copy backend source code
-COPY backend ./backend
+# 清理所有默认源配置
+RUN rm -rf /etc/apt/sources.list.d/* /etc/apt/sources.list
+RUN echo "deb http://mirrors.aliyun.com/debian/ trixie main contrib non-free" > /etc/apt/sources.list \
+    && echo "deb http://mirrors.aliyun.com/debian/ trixie-updates main contrib non-free" >> /etc/apt/sources.list \
+    && echo "deb http://mirrors.aliyun.com/debian/ trixie-backports main contrib non-free" >> /etc/apt/sources.list \
+    && echo "deb http://mirrors.aliyun.com/debian-security/ trixie-security main contrib non-free" >> /etc/apt/sources.list
 
-# Install dependencies with cache mount
-# When UV_EXTRAS is set (e.g. "postgres"), installs optional dependencies.
-RUN --mount=type=cache,target=/root/.cache/uv \
-    sh -c "cd backend && UV_INDEX_URL=${UV_INDEX_URL:-https://pypi.org/simple} uv sync ${UV_EXTRAS:+--extra $UV_EXTRAS}"
+# 安装运行时依赖
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# UTF-8 locale prevents UnicodeEncodeError on Chinese/emoji content in minimal
-# containers where locale configuration may be missing and the default encoding is not UTF-8.
-ENV LANG=C.UTF-8
-ENV LC_ALL=C.UTF-8
-ENV PYTHONIOENCODING=utf-8
+# 更换 pip 国内源
+RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 
-# ── Stage 2: Dev ──────────────────────────────────────────────────────────────
-# Retains compiler toolchain from builder so startup-time `uv sync` can build
-# source distributions in development containers.
-FROM builder AS dev
+# 安装 gunicorn 和 uvicorn
+RUN pip install gunicorn uvicorn
 
-# Install Docker CLI (for DooD: allows starting sandbox containers via host Docker socket)
-COPY --from=docker:cli /usr/local/bin/docker /usr/local/bin/docker
+# 从构建阶段复制安装好的依赖
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
 
-EXPOSE 8001 2024
+# 复制完整的应用代码（包括 packages/harness/deerflow）
+COPY . .
 
-CMD ["sh", "-c", "cd backend && PYTHONPATH=. uv run uvicorn app.gateway.app:app --host 0.0.0.0 --port 8001"]
+# 复制配置文件（从项目根目录复制到backend目录，确保能被找到）
+COPY config.yaml ./config.yaml
 
-# ── Stage 3: Runtime ──────────────────────────────────────────────────────────
-# Clean image without build-essential — reduces size (~200 MB) and attack surface.
-FROM python:3.12-slim-bookworm
+# 创建日志目录
+RUN mkdir -p logs
 
-ENV LANG=C.UTF-8
-ENV LC_ALL=C.UTF-8
-ENV PYTHONIOENCODING=utf-8
+# 设置 PYTHONPATH，确保 deerflow 模块可以被找到
+ENV PYTHONPATH=/app:/app/packages/harness
 
-# Copy Node.js runtime from builder (provides npx for MCP servers)
-COPY --from=builder /usr/bin/node /usr/bin/node
-COPY --from=builder /usr/lib/node_modules /usr/lib/node_modules
-RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/bin/npm \
-    && ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/bin/npx
+# 暴露端口
+EXPOSE 8001
 
-# Install Docker CLI (for DooD: allows starting sandbox containers via host Docker socket)
-COPY --from=docker:cli /usr/local/bin/docker /usr/local/bin/docker
-
-# Install uv (source image overridable via UV_IMAGE build arg)
-COPY --from=uv-source /uv /uvx /usr/local/bin/
-
-# Set working directory
-WORKDIR /app
-
-# Copy backend with pre-built virtualenv from builder
-COPY --from=builder /app/backend ./backend
-
-# Expose ports (gateway: 8001, langgraph: 2024)
-EXPOSE 8001 2024
-
-# Default command (can be overridden in docker-compose)
-CMD ["sh", "-c", "cd backend && PYTHONPATH=. uv run --no-sync uvicorn app.gateway.app:app --host 0.0.0.0 --port 8001"]
+# 启动命令
+CMD ["gunicorn", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "app.gateway:app", "--bind", "0.0.0.0:8001"]

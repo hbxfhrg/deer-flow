@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  # MySQL 数据库
+  mysql:
+    image: mysql:8.0
+    container_name: deerflow-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-deerflow@2024}
+      MYSQL_DATABASE: ${DB_NAME:-deer_flow}
+      MYSQL_USER: ${DB_USER:-deerflow}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-deerflow@2024}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    networks:
+      - deerflow-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: always
+
+  # 后端服务
+  backend:
+    build:
+      context: ./backend                    # ← 从本地 backend 目录读取源码
+      dockerfile: Dockerfile
+    container_name: deerflow-backend
+    environment:
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=${DB_NAME:-deer_flow}
+      - DB_USER=${DB_USER:-deerflow}
+      - DB_PASSWORD=${DB_PASSWORD:-deerflow@2024}
+      - DEBUG=${DEBUG:-true}                # 开发模式默认开启调试
+      - PORT=8001
+    volumes:
+      - ./backend:/app                      # ← 开发模式：本地代码映射到容器（热更新）
+      - ./backend/logs:/app/logs
+    ports:
+      - "8001:8001"
+    networks:
+      - deerflow-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: always
+
+  # 前端服务
+  frontend:
+    build:
+      context: ./practice                   # ← 从本地 practice 目录读取源码
+      dockerfile: Dockerfile
+    container_name: deerflow-frontend
+    volumes:
+      - ./practice/dist:/usr/share/nginx/html    # 映射构建产物
+    ports:
+      - "80:80"
+    networks:
+      - deerflow-network
+    depends_on:
+      - backend
+    restart: always
+
+volumes:
+  mysql_data:
+    driver: local
+
+networks:
+  deerflow-network:
+    driver: bridge
+
+# ================================================
+# 说明：
+# 1. 源码位置：通过 build.context 指定本地目录
+# 2. 开发模式：volumes 映射本地代码到容器，支持热更新
+# 3. 构建流程：docker-compose up 时自动构建镜像
+# ================================================

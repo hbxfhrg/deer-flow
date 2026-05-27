@@ -1,7 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
 import type { Thread, Run, EvaluationResult, Message, UserInfo, LoginResponse, Scene, Course, PracticeStartResponse, PracticeTurnResponse, PracticeEndResponse } from '@/types';
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 const axiosInstance: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
@@ -269,6 +269,7 @@ export const api = {
       success: boolean;
       report?: any;
       message?: string;
+      status?: string;
     }> {
       const response = await axiosInstance.get(`/roleplay/practice/${recordId}/report`);
       return response.data;
