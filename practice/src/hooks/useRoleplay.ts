@@ -15,6 +15,7 @@ export function useRoleplay(courseId: number | null, existingRecordId: number | 
   const [isComplete, setIsComplete] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false); // 对练完成模态框
   const [isReportReady, setIsReportReady] = useState(false); // 报告是否准备好
+  const [pendingCompleteModal, setPendingCompleteModal] = useState(false); // 待显示的完成模态框（等待AI消息渲染）
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // 滚动到底部
@@ -26,6 +27,18 @@ export function useRoleplay(courseId: number | null, existingRecordId: number | 
   useEffect(() => {
     scrollToBottom();
   }, [messages, scrollToBottom]);
+
+  // 等待消息渲染完成后显示完成模态框
+  useEffect(() => {
+    if (pendingCompleteModal && messages.length > 0) {
+      // 使用 setTimeout 确保消息已经渲染到DOM
+      const timer = setTimeout(() => {
+        setShowCompleteModal(true);
+        setPendingCompleteModal(false);
+      }, 300); // 等待300ms确保DOM渲染完成
+      return () => clearTimeout(timer);
+    }
+  }, [messages, pendingCompleteModal]);
 
   // 开始对练
   const initConversation = useCallback(async () => {
@@ -63,7 +76,8 @@ export function useRoleplay(courseId: number | null, existingRecordId: number | 
   const resumeConversation = useCallback(async (existingRecordId: number) => {
     try {
       // 获取对话历史
-      const history = await api.practice.history(existingRecordId);
+      const result = await api.practice.history(existingRecordId);
+      const history = result.history;
       const loadedMessages: Message[] = history.map((item: any, index: number) => ({
         id: `msg-${index}`,
         role: item.speaker === 1 ? 'user' : 'assistant',
@@ -79,8 +93,13 @@ export function useRoleplay(courseId: number | null, existingRecordId: number | 
         setCurrentRound(lastRound);
       }
       
-      // 默认总轮次为5（自由式对练）
-      setTotalRounds(5);
+      // 从后端获取总轮次
+      if (result.totalRounds) {
+        setTotalRounds(result.totalRounds);
+      } else {
+        // 默认总轮次为5（自由式对练）
+        setTotalRounds(5);
+      }
     } catch (e) {
       console.error('Failed to resume conversation:', e);
     }
@@ -160,8 +179,8 @@ export function useRoleplay(courseId: number | null, existingRecordId: number | 
         } else {
           setIsReportReady(false);
         }
-        // 显示对练完成模态框
-        setShowCompleteModal(true);
+        // 将需要显示模态框的请求存入状态，等待消息渲染完成后再显示
+        setPendingCompleteModal(true);
       }
     } catch (e) {
       console.error('Failed to send message:', e);

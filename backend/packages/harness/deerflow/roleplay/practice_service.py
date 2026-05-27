@@ -516,12 +516,16 @@ REPORT_SYSTEM_PROMPT = """系统角色：你是一位专业的对练教练，请
 def _build_dialog_history(dialogs: list) -> str:
     """将对话记录列表转为可读的历史文本"""
     lines = []
+    ai_reply_count = 0
     round_num = 0
     for d in dialogs:
-        # 学员回复开始新的一轮（AI开场白不算轮次）
-        if d.speaker == 1:
-            round_num += 1
         role = "学员" if d.speaker == 1 else "客户"
+        
+        # 以AI回复计算轮次（第一个AI回复是开场白，不算轮次）
+        if d.speaker == 2 and d.content:
+            ai_reply_count += 1
+            round_num = ai_reply_count - 1  # 开场白不算轮次
+        
         suffix = ""
         if d.score is not None:
             suffix += f" [得分: {d.score}]"
@@ -745,6 +749,11 @@ class PracticeService:
                 course_type=course.course_type,
                 practice_mode=course.practice_mode,
             )
+            # 设置总轮次（如果数据库字段已添加）
+            try:
+                course_record.total_rounds = total_rounds
+            except Exception:
+                logger.warning("total_rounds 字段尚未在数据库中添加，将跳过该字段的写入")
             session.add(course_record)
             await session.commit()
             await session.refresh(course_record)
@@ -769,7 +778,7 @@ class PracticeService:
             "sceneDescription": scene.scene_description,
             "totalRounds": total_rounds,
             "customerMessage": opening_message,
-            "round": 1,
+            "round": 1,  # 开场白算第1轮开始
         }
 
     @staticmethod
@@ -815,11 +824,15 @@ class PracticeService:
         
         # 获取当前对话历史，动态计算当前轮次
         all_dialogs = await DialogDetailService.get_dialogs_by_record(record_id)
-        # 计算当前轮次：AI开场白不算轮次，统计学员回复的数量即为当前轮次
-        current_round = 0
+        # 计算当前轮次：以AI生成的回复数量计算（开场白算第1轮）
+        ai_reply_count = 0
         for d in all_dialogs:
-            if d.speaker == 1 and d.content:  # 学员回复
-                current_round += 1
+            if d.speaker == 2 and d.content:  # AI回复
+                ai_reply_count += 1
+        
+        # 当前轮次 = AI回复数量（开场白算第1轮）
+        # ai_reply_count: 1=开场白(第1轮), 2=第2轮AI回复, 3=第3轮AI回复...
+        current_round = ai_reply_count
 
         # 2. 写入学员话术
         await DialogDetailService.create_dialog({
@@ -827,12 +840,16 @@ class PracticeService:
             "speaker": 1,  # 学员
             "content": user_message,
         })
-        
-        # 学员回复后，当前轮次 + 1（这才是真正的当前轮次）
-        current_round += 1
 
         # 3. 获取最新对话历史（用于评估上下文）
         all_dialogs = await DialogDetailService.get_dialogs_by_record(record_id)
+
+        # 重新计算当前轮次（学员消息已写入）
+        ai_reply_count = 0
+        for d in all_dialogs:
+            if d.speaker == 2 and d.content:
+                ai_reply_count += 1
+        current_round = ai_reply_count
 
         # 4. LLM 评估打分（聚焦当前轮次的考核维度，使用 record_id 作为随机种子）
         current_category = _get_current_category(scene, current_round, record_id)
@@ -852,8 +869,12 @@ class PracticeService:
                 evaluation.get("feedback", ""),
             )
 
-        # 6. 判断是否完成
-        is_complete = current_round >= total_rounds
+        # 6. 判断是否完成：使用学员回复数量来判定结束
+        user_reply_count = 0
+        for d in all_dialogs:
+            if d.speaker == 1 and d.content:
+                user_reply_count += 1
+        is_complete = user_reply_count >= total_rounds
 
         if is_complete:
             # 自动结束：生成最终报告
@@ -889,7 +910,7 @@ class PracticeService:
             
             return {
                 "recordId": record_id,
-                "round": current_round,
+                "round": total_rounds,  # 结束语不算轮次，直接返回总轮数
                 "evaluation": {
                     "roundScore": evaluation.get("round_score", 0),
                     "dimensionScores": evaluation.get("dimension_scores", {}),
@@ -911,7 +932,15 @@ class PracticeService:
             "content": customer_message,
         })
 
-        # 8. 更新 pract_course_record 的 last_time
+        # 8. 重新计算当前轮次（AI回复已写入）
+        all_dialogs = await DialogDetailService.get_dialogs_by_record(record_id)
+        ai_reply_count = 0
+        for d in all_dialogs:
+            if d.speaker == 2 and d.content:
+                ai_reply_count += 1
+        updated_round = ai_reply_count
+
+        # 9. 更新 pract_course_record 的 last_time
         async with get_db() as session:
             from sqlalchemy import update as sa_update
             await session.execute(
@@ -923,7 +952,7 @@ class PracticeService:
 
         return {
             "recordId": record_id,
-            "round": current_round,
+            "round": updated_round,
             "totalRounds": total_rounds,
             "evaluation": {
                 "roundScore": evaluation.get("round_score", 0),
@@ -993,27 +1022,46 @@ class PracticeService:
         }
 
     @staticmethod
-    async def get_practice_history(record_id: int) -> list[dict]:
-        """获取某次对练的完整对话历史（含评分）"""
+    async def get_practice_history(record_id: int) -> dict:
+        """获取某次对练的完整对话历史（含评分和总轮次）"""
+        # 获取对话历史
         dialogs = await DialogDetailService.get_dialogs_by_record(record_id)
+        
+        # 通过 record_id 获取 course_record，获取总轮次（直接从记录中读取，不再重新计算）
+        record = None
+        async with get_db() as session:
+            record = await session.get(CourseRecordRow, record_id)
+        
+        # 获取总轮次（优先使用记录中存储的值，避免重复计算）
+        total_rounds = record.total_rounds if record and record.total_rounds else 5
+        
+        # 构建对话历史列表
         result = []
-        round_num = 1
-        for i, d in enumerate(dialogs):
-            # 动态计算轮次：AI开场白后，每两条对话（学员+AI）为一轮
-            if i > 0 and d.speaker == 2:
-                round_num += 1
+        ai_reply_count = 0  # 统计AI回复数量
+        current_round = 0    # 当前轮次
+        
+        for d in dialogs:
+            if d.speaker == 2 and d.content:  # AI回复
+                ai_reply_count += 1
+                # 第一个AI回复是开场白，不算轮次；从第二个AI回复开始算第1轮
+                current_round = ai_reply_count - 1
+            
             result.append({
                 "dialog_id": d.dialog_id,
                 "record_id": d.record_id,
                 "speaker": d.speaker,
                 "content_type": d.content_type,
                 "content": d.content,
-                "round_number": round_num,
+                "round_number": current_round,
                 "score": d.score,
                 "feedback": d.feedback,
                 "create_time": d.create_time.isoformat() if d.create_time else None,
             })
-        return result
+        
+        return {
+            "history": result,
+            "totalRounds": total_rounds,
+        }
 
     @staticmethod
     async def get_report(record_id: int) -> dict:

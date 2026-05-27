@@ -25,7 +25,8 @@ export function ResultPage() {
       setIsLoading(true);
       try {
         // 加载对话历史
-        const history = await api.practice.history(Number(recordId));
+        const result = await api.practice.history(Number(recordId));
+        const history = result.history || [];
         const loadedMessages: Message[] = history.map((item: any, index: number) => ({
           id: `msg-${index}`,
           role: item.speaker === 1 ? 'user' : 'assistant',

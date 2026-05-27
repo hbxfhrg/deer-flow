@@ -102,3 +102,4 @@ class CourseRecordRow(RoleplayBase):
     accord_finish: Mapped[int] = mapped_column(Integer, nullable=True)
     last_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     practice_mode: Mapped[str] = mapped_column(String(20), nullable=True)
+    total_rounds: Mapped[int] = mapped_column(Integer, nullable=True)  # 总轮次，在对练开始时计算并存储
