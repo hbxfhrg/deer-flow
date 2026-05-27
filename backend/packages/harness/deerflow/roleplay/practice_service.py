@@ -521,10 +521,10 @@ def _build_dialog_history(dialogs: list) -> str:
     for d in dialogs:
         role = "学员" if d.speaker == 1 else "客户"
         
-        # 以AI回复计算轮次（第一个AI回复是开场白，不算轮次）
+        # 以AI回复计算轮次（开场白算第1轮）
         if d.speaker == 2 and d.content:
             ai_reply_count += 1
-            round_num = ai_reply_count - 1  # 开场白不算轮次
+            round_num = ai_reply_count  # 开场白算第1轮
         
         suffix = ""
         if d.score is not None:
@@ -1043,8 +1043,8 @@ class PracticeService:
         for d in dialogs:
             if d.speaker == 2 and d.content:  # AI回复
                 ai_reply_count += 1
-                # 第一个AI回复是开场白，不算轮次；从第二个AI回复开始算第1轮
-                current_round = ai_reply_count - 1
+                # 开场白算第1轮，AI回复数量即为当前轮次
+                current_round = ai_reply_count
             
             result.append({
                 "dialog_id": d.dialog_id,
