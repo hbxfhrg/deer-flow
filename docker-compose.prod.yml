@@ -1,16 +1,17 @@
 # =================================================
 # DeerFlow 生产环境 Docker Compose 配置
 # 端口说明：
-#   - deeragent: 3000 端口（由其他服务管理）
 #   - 对练系统后端: 8001 端口
 #   - 对练系统前端: 4000 端口
 # =================================================
 
 services:
-  # 后端服务（使用已构建的镜像）
+  # 后端服务
   backend:
     image: deerflow-backend:latest
     container_name: deerflow-backend
+    ports:
+      - "8001:8001"
     environment:
       # 主数据库配置（使用 SQLite）
       - DB_BACKEND=sqlite
@@ -24,16 +25,18 @@ services:
       # 后端配置
       - DEBUG=false
       - PORT=8001
+      # JWT 配置
+      - AUTH_JWT_SECRET=${AUTH_JWT_SECRET:-your-secure-jwt-secret-here-32-chars-minimum}
+      # CORS 配置（允许生产环境前端访问）
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://192.168.110.86:4000,http://localhost:4000}
       # LLM 模型配置（供 config.yaml 使用）
       - OPENAI_API_KEY=${OPENAI_API_KEY:-your-api-key-here}
       - OPENAI_API_BASE=${OPENAI_API_BASE:-https://api.openai.com/v1}
-    ports:
-      - "8001:8001"
     networks:
       - deerflow-network
     restart: always
 
-  # 前端服务（使用已构建的镜像）
+  # 前端服务
   frontend:
     image: deerflow-frontend:latest
     container_name: deerflow-frontend

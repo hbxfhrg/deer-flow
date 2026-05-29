@@ -1,4 +1,4 @@
-import { ArrowLeft, HelpCircle, Settings, LogOut } from 'lucide-react';
+import { ArrowLeft, HelpCircle, Settings, LogOut, RefreshCw } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { MessageBubble } from '@/components/MessageBubble';
@@ -16,6 +16,7 @@ export function ResultPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isReportGenerating, setIsReportGenerating] = useState(true);
   const [generateProgress, setGenerateProgress] = useState(0);
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
   // 加载对话历史和报告
   useEffect(() => {
@@ -95,6 +96,28 @@ export function ResultPage() {
     alert('报告生成后将通知您');
   };
 
+  // 重新生成报告
+  const handleRegenerateReport = async () => {
+    if (!recordId || isRegenerating) return;
+    
+    setIsRegenerating(true);
+    setIsReportGenerating(true);
+    setGenerateProgress(0);
+    setReport(null);
+    
+    try {
+      // 调用后端重新生成报告 API
+      await api.practice.regenerateReport(Number(recordId));
+      
+      // 轮询获取新报告
+      pollForReport(Number(recordId));
+    } catch (error) {
+      console.error('重新生成报告失败:', error);
+      setIsRegenerating(false);
+      setIsReportGenerating(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="h-full flex items-center justify-center bg-gray-50">
@@ -123,11 +146,19 @@ export function ResultPage() {
               <span className="text-white font-bold text-lg">D</span>
             </div>
             <div>
-              <h1 className="font-semibold text-gray-800">AI对练</h1>
+              <h1 className="font-semibold text-gray-800">AI 对练</h1>
               <p className="text-xs text-gray-400">评测报告</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button 
+              onClick={handleRegenerateReport}
+              disabled={isRegenerating || !report}
+              className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="重新生成报告"
+            >
+              <RefreshCw className={`w-5 h-5 ${isRegenerating ? 'animate-spin' : ''}`} />
+            </button>
             <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
               <HelpCircle className="w-5 h-5" />
             </button>
@@ -191,7 +222,7 @@ export function ResultPage() {
 
             {/* 报告内容 */}
             {report ? (
-              <ReportPanel report={report} />
+              <ReportPanel report={report} onRegenerate={handleRegenerateReport} />
             ) : (
               <div className="flex flex-col items-center justify-center h-64 px-4">
                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">

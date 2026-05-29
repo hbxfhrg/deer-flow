@@ -1,8 +1,9 @@
-import { Trophy, Star, ThumbsUp, ThumbsDown, TrendingUp } from 'lucide-react';
+import { Trophy, Star, ThumbsUp, ThumbsDown, TrendingUp, RefreshCw } from 'lucide-react';
 import type { EvaluationReport } from '@/types';
 
 interface ReportPanelProps {
   report: EvaluationReport;
+  onRegenerate?: () => void;
 }
 
 function getScoreColor(score: number): string {
@@ -17,9 +18,10 @@ function getScoreBg(score: number): string {
   return 'bg-red-500';
 }
 
-export function ReportPanel({ report }: ReportPanelProps) {
+export function ReportPanel({ report, onRegenerate }: ReportPanelProps) {
   const totalScore = report.total_score ?? 0;
   const dimensionScores = report.dimension_scores || {};
+  const dimensionFeedbacks = report.dimension_feedbacks || {};
   const strengths = report.strengths || [];
   const improvements = report.improvements || [];
   const summary = report.summary || '';
@@ -27,13 +29,24 @@ export function ReportPanel({ report }: ReportPanelProps) {
   return (
     <div className="bg-white rounded-2xl shadow-lg p-6 animate-fadeIn">
       {/* 标题 */}
-      <div className="flex items-center gap-2 mb-6">
-        <Trophy className="w-6 h-6 text-yellow-500" />
-        <h2 className="text-xl font-bold text-gray-800">对练报告</h2>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-2">
+          <Trophy className="w-6 h-6 text-yellow-500" />
+          <h2 className="text-xl font-bold text-gray-800">对练报告</h2>
+        </div>
+        {onRegenerate && (
+          <button
+            onClick={onRegenerate}
+            className="p-2 text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors"
+            title="重新生成总结"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       {/* 总分 */}
-      <div className="flex flex-col items-center py-6 mb-6 bg-gray-50 rounded-xl">
+      <div className="flex flex-col items-center py-6 mb-6 bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl">
         <div className={`text-5xl font-bold ${getScoreColor(totalScore)}`}>
           {totalScore}
         </div>
@@ -48,28 +61,34 @@ export function ReportPanel({ report }: ReportPanelProps) {
         </div>
       </div>
 
-      {/* 维度得分 */}
+      {/* 维度得分与反馈 */}
       {Object.keys(dimensionScores).length > 0 && (
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-3">
             <TrendingUp className="w-4 h-4 text-blue-500" />
-            <h3 className="font-semibold text-gray-700">维度得分</h3>
+            <h3 className="font-semibold text-gray-700">维度评估</h3>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-4">
             {Object.entries(dimensionScores).map(([key, value]) => (
-              <div key={key}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm text-gray-600">{key}</span>
-                  <span className={`text-sm font-semibold ${getScoreColor(value)}`}>
+              <div key={key} className="bg-gray-50 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-medium text-gray-700">{key}</span>
+                  <span className={`text-lg font-bold ${getScoreColor(value)}`}>
                     {value}分
                   </span>
                 </div>
-                <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden mb-3">
                   <div
                     className={`h-full rounded-full transition-all duration-700 ${getScoreBg(value)}`}
                     style={{ width: `${value}%` }}
                   />
                 </div>
+                {/* 维度详细反馈 */}
+                {dimensionFeedbacks[key] && (
+                  <p className="text-sm text-gray-600 leading-relaxed bg-white px-3 py-2 rounded-lg">
+                    {dimensionFeedbacks[key]}
+                  </p>
+                )}
               </div>
             ))}
           </div>

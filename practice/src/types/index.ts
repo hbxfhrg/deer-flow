@@ -101,6 +101,7 @@ export interface Course {
 export interface EvaluationReport {
   total_score: number;
   dimension_scores: Record<string, number>;
+  dimension_feedbacks?: Record<string, string>;
   strengths: string[];
   improvements: string[];
   summary: string;

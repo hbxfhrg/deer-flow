@@ -237,7 +237,7 @@ export const api = {
       return response.data;
     },
     
-    async history(recordId: number): Promise<any[]> {
+    async history(recordId: number): Promise<{ history: any[], totalRounds?: number }> {
       const response = await axiosInstance.get(`/roleplay/practice/${recordId}/history`);
       return response.data;
     },
@@ -272,6 +272,14 @@ export const api = {
       status?: string;
     }> {
       const response = await axiosInstance.get(`/roleplay/practice/${recordId}/report`);
+      return response.data;
+    },
+    
+    async regenerateReport(recordId: number): Promise<{
+      success: boolean;
+      report?: any;
+    }> {
+      const response = await axiosInstance.post(`/roleplay/practice/${recordId}/report/regenerate`);
       return response.data;
     },
   },

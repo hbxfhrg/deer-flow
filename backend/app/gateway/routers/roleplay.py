@@ -620,3 +620,12 @@ async def practice_report(record_id: int):
         return await PracticeService.get_report(record_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/practice/{record_id}/report/regenerate", summary="重新生成评估报告")
+async def regenerate_practice_report(record_id: int):
+    """重新生成评估报告（用于调试）"""
+    try:
+        return await PracticeService.regenerate_report(record_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))

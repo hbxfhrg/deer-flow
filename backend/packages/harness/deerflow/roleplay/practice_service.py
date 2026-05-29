@@ -494,20 +494,29 @@ REPORT_SYSTEM_PROMPT = """系统角色：你是一位专业的对练教练，请
 {full_dialog_with_scores}
 
 请综合以上信息，生成完整的评估报告。要求：
-- total_score 取所有维度分的平均值
-- dimension_scores 列出每个考核维度的最终得分
-- strengths 列出学员的突出优点
-- improvements 列出需要改进的方向
-- summary 给出整体评价
+1. total_score 取所有维度分的平均值
+2. dimension_scores 列出每个考核维度的最终得分（满分100）
+3. dimension_feedbacks 对每个考核维度给出详细评估：
+   - 如果该维度表现优秀，描述做得好的具体方面
+   - 如果该维度需要改进，给出具体的改进建议
+   - 评估要中肯客观，既肯定优点也指出不足
+4. strengths 列出学员的突出优点（从各维度中提炼）
+5. improvements 列出需要改进的方向（从各维度中提炼）
+6. summary 给出整体评价，总结表现并提出鼓励
 
 按以下 JSON 格式输出（仅输出 JSON）：
 
 {{
   "total_score": 82,
   "dimension_scores": {{"产品知识": 80, "沟通技巧": 85, "问题解决": 80}},
-  "strengths": ["产品知识扎实", "善于倾听客户需求"],
+  "dimension_feedbacks": {{
+    "产品知识": "表现优秀：对产品功能和特点非常熟悉，能够准确回答客户关于产品配置的问题。建议：可以进一步了解竞品信息，以便更好地突出产品优势。",
+    "沟通技巧": "表现良好：能够倾听客户需求并给予回应。建议：可以增加更多开放性问题，引导客户深入表达需求。",
+    "问题解决": "表现一般：在处理客户异议时思路不够清晰。建议：可以学习结构化的问题解决方法。"
+  }},
+  "strengths": ["产品知识扎实", "善于倾听客户需求", "表达清晰"],
   "improvements": ["需要加强异议处理技巧", "建议使用更多数据说服客户"],
-  "summary": "整体表现良好，产品知识扎实..."
+  "summary": "整体表现良好，产品知识扎实，沟通能力较强。建议在异议处理方面多加练习，相信会有更大的进步！"
 }}"""
 
 
@@ -628,11 +637,26 @@ async def _generate_report(scene: SceneRow, dialogs: list) -> dict:
     dialog_text = _build_dialog_history(dialogs)
 
     system_prompt = REPORT_SYSTEM_PROMPT.format(
-        exam_categories=scene.exam_categories or "沟通能力,专业素养",
+        exam_categories=scene.exam_categories or "沟通能力，专业素养",
         scoring_rules=scene.scoring_rules or "根据学员综合表现进行评分",
         full_dialog_with_scores=dialog_text,
     )
     return await _llm_invoke_json(system_prompt, "请生成最终报告。", scene.model_name)
+
+
+async def _generate_report_by_scene(scene_id: int, dialogs: list) -> dict:
+    """根据场景 ID 重新生成报告"""
+    from sqlalchemy import select as sa_select
+    
+    async with get_db() as session:
+        result = await session.execute(
+            sa_select(SceneRow).where(SceneRow.id == scene_id)
+        )
+        scene = result.scalar_one_or_none()
+        if not scene:
+            raise ValueError(f"场景 {scene_id} 不存在")
+        
+        return await _generate_report(scene, dialogs)
 
 
 async def _generate_closing_message(scene: SceneRow, dialogs: list, total_score: float) -> str:
@@ -1089,6 +1113,42 @@ class PracticeService:
                     "summary": record.summary or "",
                     "total_score": record.total_score or 0,
                 },
+            }
+
+    @staticmethod
+    async def regenerate_report(record_id: int) -> dict:
+        """重新生成评估报告（用于调试）"""
+        from sqlalchemy import select as sa_select
+        
+        async with get_db() as session:
+            # 获取记录
+            result = await session.execute(
+                sa_select(CourseRecordRow).where(CourseRecordRow.id == record_id)
+            )
+            record = result.scalar_one_or_none()
+            if not record:
+                raise ValueError(f"练习记录 {record_id} 不存在")
+            
+            # 获取对话历史
+            dialogs_result = await session.execute(
+                sa_select(DialogDetailRow).where(DialogDetailRow.record_id == record_id)
+            )
+            dialogs = dialogs_result.scalars().all()
+            
+            # 重新生成报告
+            report = await _generate_report_by_scene(record.scene_id, dialogs)
+            
+            # 更新记录
+            record.summary = report.get("summary", "")
+            record.total_score = report.get("total_score", 0)
+            record.end_time = datetime.now()
+            
+            await session.commit()
+            
+            return {
+                "success": True,
+                "record_id": record.id,
+                "report": report,
             }
 
     @staticmethod

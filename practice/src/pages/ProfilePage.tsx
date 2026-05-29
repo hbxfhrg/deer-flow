@@ -1,5 +1,6 @@
 import { User, Trophy, BookOpen, Settings, HelpCircle, LogOut, ChevronRight, Star } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { api } from '@/api';
 import type { UserInfo } from '@/types';
 
@@ -7,6 +8,7 @@ export function ProfilePage() {
   const [activeSection, setActiveSection] = useState<string>('overview');
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [expandedHelp, setExpandedHelp] = useState<string | null>(null);
 
   useEffect(() => {
     loadUserInfo();
@@ -38,16 +40,8 @@ export function ProfilePage() {
   const menuItems = [
     { id: 'overview', label: '学习概览', icon: BookOpen },
     { id: 'history', label: '练习记录', icon: Trophy },
-    { id: 'achievements', label: '成就徽章', icon: Star },
     { id: 'settings', label: '设置', icon: Settings },
     { id: 'help', label: '帮助与反馈', icon: HelpCircle },
-  ];
-
-  const achievements = [
-    { id: '1', name: '初学者', description: '完成第一次练习', unlocked: true },
-    { id: '2', name: '坚持不懈', description: '连续练习7天', unlocked: true },
-    { id: '3', name: '销售之星', description: '获得10次满分', unlocked: false },
-    { id: '4', name: '全能选手', description: '完成所有场景', unlocked: false },
   ];
 
   const renderContent = () => {
@@ -118,27 +112,6 @@ export function ProfilePage() {
             </div>
           </div>
         );
-      
-      case 'achievements':
-        return (
-          <div className="space-y-3">
-            {achievements.map((achievement) => (
-              <div key={achievement.id} className={`bg-white rounded-xl p-4 flex items-center gap-3 ${!achievement.unlocked ? 'opacity-50' : ''}`}>
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${achievement.unlocked ? 'bg-primary-100 text-primary-500' : 'bg-gray-100 text-gray-400'}`}>
-                  <Star className={`w-6 h-6 ${achievement.unlocked ? 'fill-current' : ''}`} />
-                </div>
-                <div className="flex-1">
-                  <h4 className="font-medium text-gray-800">{achievement.name}</h4>
-                  <p className="text-xs text-gray-500">{achievement.description}</p>
-                </div>
-                <div className={`text-sm font-medium ${achievement.unlocked ? 'text-success-500' : 'text-gray-400'}`}>
-                  {achievement.unlocked ? '已解锁' : '未解锁'}
-                </div>
-              </div>
-            ))}
-          </div>
-        );
-      
       case 'history':
         return (
           <div className="space-y-3">
@@ -183,15 +156,83 @@ export function ProfilePage() {
         );
       
       case 'help':
+        const faqs = [
+          {
+            id: 'start',
+            question: '如何开始练习？',
+            answer: (
+              <div className="text-sm text-gray-600 space-y-2">
+                <p><strong>1. 登录系统</strong></p>
+                <p>打开浏览器，访问系统首页，使用账号密码登录系统。</p>
+                <p><strong>2. 进入练习入口</strong></p>
+                <p>登录成功后，在首页或导航栏找到"开始练习"按钮，点击进入练习选择页面。</p>
+                <p><strong>3. 开始对练</strong></p>
+                <p>选择一个练习场景，点击"开始练习"按钮进入对练界面。阅读场景描述和问题后，在输入框中输入您的回复，点击发送或按回车键提交。等待AI回复后，继续进行下一轮对话。</p>
+              </div>
+            ),
+          },
+          {
+            id: 'select',
+            question: '如何选择场景？',
+            answer: (
+              <div className="text-sm text-gray-600 space-y-2">
+                <p><strong>场景分类：</strong></p>
+                <ul className="list-disc list-inside space-y-1">
+                  <li><strong>基础场景</strong>：适合新手入门，难度较低（如：初次拜访客户、产品介绍）</li>
+                  <li><strong>进阶场景</strong>：中等难度，需要一定技巧（如：处理客户异议、价格谈判）</li>
+                  <li><strong>高级场景</strong>：高难度，综合能力考核（如：复杂需求挖掘、危机处理）</li>
+                </ul>
+                <p><strong>选择建议：</strong></p>
+                <ul className="list-disc list-inside">
+                  <li>新手用户：建议从基础场景开始</li>
+                  <li>有经验用户：可根据自身薄弱环节选择相应场景进行专项练习</li>
+                </ul>
+              </div>
+            ),
+          },
+          {
+            id: 'report',
+            question: '如何查看评估报告？',
+            answer: (
+              <div className="text-sm text-gray-600 space-y-2">
+                <p><strong>1. 自动生成报告</strong></p>
+                <p>完成一轮对练后，系统会自动生成评估报告。对练结束时会弹出"查看总结"弹窗，点击弹窗中的"查看报告"按钮即可查看详细报告。</p>
+                <p><strong>2. 从历史记录查看</strong></p>
+                <p>在个人中心页面，点击"练习记录"菜单，选择想要查看的历史练习记录，点击记录卡片即可查看该次练习的评估报告。</p>
+                <p><strong>报告内容：</strong></p>
+                <ul className="list-disc list-inside">
+                  <li>得分图表：按考核维度展示整体得分</li>
+                  <li>维度建议：每个考核维度都会给出针对性建议，包含优点和改进建议</li>
+                  <li>重新生成：可点击"重新生成总结"按钮获取不同角度的评估结果</li>
+                </ul>
+              </div>
+            ),
+          },
+        ];
+
         return (
           <div className="space-y-4">
             <div className="bg-white rounded-xl p-4">
-              <h3 className="font-semibold text-gray-800 mb-2">常见问题</h3>
+              <h3 className="font-semibold text-gray-800 mb-3">常见问题</h3>
               <div className="space-y-2">
-                {['如何开始练习？', '如何选择场景？', '如何查看评估报告？'].map((q, i) => (
-                  <div key={i} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
-                    <span className="text-sm text-gray-600">{q}</span>
-                    <ChevronRight className="w-4 h-4 text-gray-400" />
+                {faqs.map((faq) => (
+                  <div key={faq.id} className="border-b border-gray-50 last:border-0">
+                    <button
+                      onClick={() => setExpandedHelp(expandedHelp === faq.id ? null : faq.id)}
+                      className="w-full flex items-center justify-between py-3 text-left"
+                    >
+                      <span className="text-sm text-gray-600">{faq.question}</span>
+                      <ChevronDown
+                        className={`w-4 h-4 text-gray-400 transition-transform ${
+                          expandedHelp === faq.id ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </button>
+                    {expandedHelp === faq.id && (
+                      <div className="pb-3 pl-1 border-t border-gray-100 pt-3">
+                        {faq.answer}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
