@@ -8,7 +8,7 @@ from deerflow.roleplay.services import SceneService, EvaluationService, Practice
 from deerflow.roleplay.practice_service import PracticeService
 from deerflow.roleplay.auth_service import AuthService
 
-router = APIRouter(prefix="/api/roleplay", tags=["roleplay"])
+router = APIRouter(prefix="/roleplay", tags=["roleplay"])
 
 class SceneCreate(BaseModel):
     scene_id: Optional[int] = None
@@ -427,9 +427,11 @@ async def get_practice_records(
     course_id: Optional[int] = None,
     start_time: Optional[str] = None,
     end_time: Optional[str] = None,
-    status: Optional[str] = None
+    status: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20
 ):
-    records = await PracticeRecordService.get_practice_records(user_name, course_id, start_time, end_time, status)
+    records = await PracticeRecordService.get_practice_records(user_name, course_id, start_time, end_time, status, page, page_size)
     return {"records": [
         {
             "recordId": r["record_id"],
@@ -442,6 +444,7 @@ async def get_practice_records(
             "endTime": r["end_time"],
             "summary": r.get("summary"),
             "practiceMode": r.get("practice_mode"),
+            "accordFinish": r.get("accord_finish"),
         } for r in records
     ]}
 
@@ -629,3 +632,27 @@ async def regenerate_practice_report(record_id: int):
         return await PracticeService.regenerate_report(record_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        # 捕获其他所有异常，返回更详细的错误信息
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"重新生成报告时发生未知错误，record_id={record_id}，错误：{str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"服务器内部错误：{str(e)}")
+
+
+@router.get("/practice/{record_id}/inspiration", summary="生成对话灵感")
+async def generate_practice_inspiration(record_id: int):
+    """
+    根据当前对话历史生成对话灵感（知识点提示）
+    - 用户在练习过程中点击灵感按钮时调用此接口
+    - 根据场景知识库和当前对话生成相关知识点提示
+    """
+    try:
+        return await PracticeService.generate_inspiration(record_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"生成灵感失败，record_id={record_id}，错误：{str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"服务器内部错误：{str(e)}")

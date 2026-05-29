@@ -12,7 +12,8 @@ interface PracticeHistoryRecord {
   endTime?: string;
   totalScore?: number;
   summary?: string;
-  status: 'completed' | 'in_progress';
+  status: 'completed' | 'in_progress' | 'aborted';
+  accordFinish?: number;
 }
 
 type StatusType = 'all' | 'completed' | 'in_progress';
@@ -21,8 +22,12 @@ export function HistoryPage() {
   const navigate = useNavigate();
   const [records, setRecords] = useState<PracticeHistoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusType>('all');
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>(getDefaultDateRange());
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [isFilterChanged, setIsFilterChanged] = useState(false);
 
   function getDefaultDateRange() {
     const end = new Date();
@@ -37,39 +42,98 @@ export function HistoryPage() {
   useEffect(() => {
     const startTime = `${dateRange.start}T00:00:00Z`;
     const endTime = `${dateRange.end}T23:59:59Z`;
-    fetchHistory(undefined, startTime, endTime);
+    fetchHistory(1, undefined, startTime, endTime, true);
   }, []);
 
-  const fetchHistory = async (status?: string, startTime?: string, endTime?: string) => {
-    setLoading(true);
+  const fetchHistory = async (pageNum: number = 1, status?: string, startTime?: string, endTime?: string, reset: boolean = false) => {
+    if (reset) {
+      setLoading(true);
+    } else {
+      setLoadingMore(true);
+    }
     try {
       const user = api.auth.getCurrentUser();
       const data = await api.practiceRecords.list(
-        undefined,
+        undefined,  // courseId
         user?.user_name,
         startTime,
         endTime,
-        status === 'all' ? undefined : status
+        status === 'all' ? undefined : status,
+        pageNum,
+        20
       );
       if (data) {
-        setRecords(data.map((item: any) => ({
-          id: item.recordId,
-          courseId: item.courseId,
-          courseName: item.courseName || '未知课程',
-          sceneName: item.sceneName || '未知场景',
-          startTime: item.startTime,
-          endTime: item.endTime,
-          totalScore: item.totalScore,
-          summary: item.summary,
-          status: item.endTime ? 'completed' : 'in_progress',
-        })));
+        const newRecords = data.map((item: any) => {
+          let status: 'completed' | 'in_progress' | 'aborted' = 'in_progress';
+          if (item.endTime) {
+            // 已结束，根据 accordFinish 判断状态
+            if (item.accordFinish === 2) {
+              status = 'aborted'; // 中途退出
+            } else {
+              status = 'completed'; // 正常完成
+            }
+          }
+          return {
+            id: item.recordId,
+            courseId: item.courseId,
+            courseName: item.courseName || '未知课程',
+            sceneName: item.sceneName || '未知场景',
+            startTime: item.startTime,
+            endTime: item.endTime,
+            totalScore: item.totalScore,
+            summary: item.summary,
+            accordFinish: item.accordFinish,
+            status,
+          };
+        });
+        
+        if (reset) {
+          setRecords(newRecords);
+        } else {
+          setRecords(prev => [...prev, ...newRecords]);
+        }
+        
+        // 判断是否还有更多数据
+        setHasMore(newRecords.length >= 10); // 假设每页10条
+      } else {
+        setHasMore(false);
       }
     } catch (error) {
       console.error('获取练习历史失败:', error);
     } finally {
-      setLoading(false);
+      if (reset) {
+        setLoading(false);
+      } else {
+        setLoadingMore(false);
+      }
     }
   };
+
+  // 滚动加载更多
+  useEffect(() => {
+    const handleScroll = () => {
+      if (loadingMore || !hasMore || loading || isFilterChanged) return;
+      
+      const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+      const windowHeight = window.innerHeight;
+      const documentHeight = document.documentElement.offsetHeight;
+      
+      // 当滚动到距离底部100px时加载更多
+      if (scrollTop + windowHeight >= documentHeight - 100) {
+        setPage(prev => {
+          const nextPage = prev + 1;
+          const status = statusFilter === 'all' ? undefined : statusFilter;
+          const startTime = dateRange.start ? `${dateRange.start}T00:00:00Z` : undefined;
+          const endTime = dateRange.end ? `${dateRange.end}T23:59:59Z` : undefined;
+          fetchHistory(nextPage, status, startTime, endTime, false);
+          return nextPage;
+        });
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [loadingMore, hasMore, loading, statusFilter, dateRange, isFilterChanged]);
 
   const handleRecordClick = (record: PracticeHistoryRecord) => {
     if (record.status === 'in_progress') {
@@ -82,16 +146,20 @@ export function HistoryPage() {
   };
 
   const handleFilter = () => {
+    setPage(1);
+    setHasMore(true);
     const status = statusFilter === 'all' ? undefined : statusFilter;
     const startTime = dateRange.start ? `${dateRange.start}T00:00:00Z` : undefined;
     const endTime = dateRange.end ? `${dateRange.end}T23:59:59Z` : undefined;
-    fetchHistory(status, startTime, endTime);
+    fetchHistory(1, status, startTime, endTime, true);
   };
 
   const handleReset = () => {
     setStatusFilter('all');
     setDateRange(getDefaultDateRange());
-    fetchHistory(undefined, undefined, undefined);
+    setPage(1);
+    setHasMore(true);
+    fetchHistory(1, undefined, undefined, undefined, true);
   };
 
   const formatDateTime = (dateStr?: string) => {
@@ -213,10 +281,12 @@ export function HistoryPage() {
                       className={`text-xs px-2 py-0.5 rounded-full ${
                         record.status === 'completed'
                           ? 'bg-green-100 text-green-600'
+                          : record.status === 'aborted'
+                          ? 'bg-red-100 text-red-600'
                           : 'bg-yellow-100 text-yellow-600'
                       }`}
                     >
-                      {record.status === 'completed' ? '已完成' : '进行中'}
+                      {record.status === 'completed' ? '已完成' : record.status === 'aborted' ? '中途退出' : '进行中'}
                     </span>
                   </div>
                   <p className="text-sm text-gray-500 mb-3">{record.sceneName}</p>
@@ -249,6 +319,21 @@ export function HistoryPage() {
               </div>
             </div>
           ))}
+          
+          {/* 加载更多提示 */}
+          {loadingMore && (
+            <div className="flex items-center justify-center py-4">
+              <div className="w-6 h-6 border-4 border-primary-500 border-t-transparent rounded-full animate-spin"></div>
+              <span className="ml-2 text-sm text-gray-400">加载更多...</span>
+            </div>
+          )}
+          
+          {/* 没有更多数据提示 */}
+          {!loadingMore && !hasMore && records.length > 0 && (
+            <div className="flex items-center justify-center py-4 text-gray-400 text-sm">
+              已加载全部记录
+            </div>
+          )}
         </div>
       )}
     </div>

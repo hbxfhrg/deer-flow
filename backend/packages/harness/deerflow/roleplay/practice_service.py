@@ -500,6 +500,7 @@ REPORT_SYSTEM_PROMPT = """系统角色：你是一位专业的对练教练，请
    - 如果该维度表现优秀，描述做得好的具体方面
    - 如果该维度需要改进，给出具体的改进建议
    - 评估要中肯客观，既肯定优点也指出不足
+   - 描述时避免使用具体的轮次数字（如"第X轮"、"X轮对话"），使用"对话中"、"整个对话过程"等中性描述
 4. strengths 列出学员的突出优点（从各维度中提炼）
 5. improvements 列出需要改进的方向（从各维度中提炼）
 6. summary 给出整体评价，总结表现并提出鼓励
@@ -632,6 +633,83 @@ async def _generate_detailed_suggestions(
     return await _llm_invoke_json(system_prompt, "请生成详细评价建议。", scene.model_name)
 
 
+INSPIRATION_PROMPT = """
+你是一个专业的对话灵感助手，帮助学员在模拟对练中获得知识点提示。
+
+## 当前考核维度
+{current_category}
+
+## 当前场景
+{scene_description}
+
+## 知识库
+{knowledge_base}
+
+## 对话历史
+{dialog_history}
+
+## 任务
+请针对当前考核维度，生成2-3条简短的知识点提示，帮助学员更好地回应客户。
+
+## 要求
+1. 必须针对当前考核维度生成，不偏离主题
+2. 每条提示不超过100字，语言简洁
+3. 语言自然友好，像朋友在旁边给的小提示
+4. 提供思路和要点，不直接给出答案
+5. 保持积极鼓励的语气
+
+请以JSON格式输出，格式如下：
+{{
+  "tips": [
+    {{"category": "简短标题", "content": "简洁提示，不超过100字"}},
+    {{"category": "简短标题", "content": "简洁提示，不超过100字"}}
+  ]
+}}
+"""
+
+
+async def _generate_inspiration(scene: SceneRow, dialogs: list) -> dict:
+    """调用 LLM 生成对话灵感（知识点提示）"""
+    history_text = _build_dialog_history(dialogs) if dialogs else "（对话刚开始，暂无历史）"
+    
+    # 计算当前轮次和对应的考核维度
+    current_round = 0
+    for d in dialogs:
+        if d.speaker == 1 and d.content:  # 学员回复
+            current_round += 1
+    current_category = _get_current_category(scene, current_round, None)
+
+    system_prompt = INSPIRATION_PROMPT.format(
+        current_category=current_category or "综合能力",
+        scene_description=scene.scene_description or "",
+        knowledge_base=scene.summary_text or scene.knowledge_base or "暂无知识库内容",
+        dialog_history=history_text,
+    )
+    
+    try:
+        result = await _llm_invoke_json(system_prompt, "请生成对话灵感。", scene.model_name)
+        tips = result.get("tips", [])
+        # 限制数量和长度
+        return [
+            {"category": t.get("category", ""), "content": t.get("content", "")[:150]}
+            for t in tips[:3]
+        ]
+    except Exception as e:
+        # 如果调用失败，返回默认的知识库内容
+        logger = logging.getLogger(__name__)
+        logger.error(f"生成灵感失败：{str(e)}")
+        # 解析摘要文本作为备选
+        if scene.summary_text:
+            tips = []
+            for line in scene.summary_text.split('\n'):
+                line = line.strip()
+                if line and ':' in line:
+                    category, content = line.split(':', 1)
+                    tips.append({"category": category.strip()[:20], "content": content.strip()[:150]})
+            return tips[:3]
+        return []
+
+
 async def _generate_report(scene: SceneRow, dialogs: list) -> dict:
     """调用 LLM 生成最终评估报告"""
     dialog_text = _build_dialog_history(dialogs)
@@ -650,7 +728,7 @@ async def _generate_report_by_scene(scene_id: int, dialogs: list) -> dict:
     
     async with get_db() as session:
         result = await session.execute(
-            sa_select(SceneRow).where(SceneRow.id == scene_id)
+            sa_select(SceneRow).where(SceneRow.scene_id == scene_id)
         )
         scene = result.scalar_one_or_none()
         if not scene:
@@ -1032,7 +1110,7 @@ class PracticeService:
                     total_score=total_score,
                     end_time=end_time,
                     summary=report.get("summary", "")[:65535] if report else "",
-                    accord_finish=1 if total_score >= (course.passing_score or 60) else 0,
+                    accord_finish=2,  # 手动结束
                 )
             )
             
@@ -1089,8 +1167,9 @@ class PracticeService:
 
     @staticmethod
     async def get_report(record_id: int) -> dict:
-        """获取最终评估报告（从 pract_course_record 获取）"""
+        """获取最终评估报告（包含完整维度评分和反馈）"""
         from sqlalchemy import select as sa_select
+        import json
 
         async with get_db() as session:
             result = await session.execute(
@@ -1103,15 +1182,41 @@ class PracticeService:
             # 判断报告是否已生成（通过检查 end_time 和 summary 是否存在）
             is_completed = record.end_time is not None and record.summary is not None
             
+            # 尝试从 summary 字段解析 JSON 格式的完整报告
+            report = {
+                "summary": "",
+                "total_score": record.total_score or 0,
+                "dimension_scores": {},
+                "dimension_feedbacks": {},
+                "strengths": [],
+                "improvements": [],
+            }
+            
+            if is_completed and record.summary:
+                try:
+                    # 尝试解析 JSON
+                    parsed_report = json.loads(record.summary)
+                    if isinstance(parsed_report, dict):
+                        report.update(parsed_report)
+                    else:
+                        # 如果不是 JSON，作为普通摘要文本处理
+                        report["summary"] = record.summary
+                except json.JSONDecodeError:
+                    # 如果解析失败，作为普通摘要文本处理
+                    report["summary"] = record.summary
+            
+            # 根据实际维度得分计算总分，确保一致性
+            calculated_total_score = _calc_total_score(report)
+            
             return {
                 "success": True,
                 "record_id": record.id,
-                "total_score": record.total_score,
-                "summary": record.summary or "",
+                "total_score": calculated_total_score,
+                "summary": report.get("summary", ""),
                 "status": "completed" if is_completed else "generating",
                 "report": {
-                    "summary": record.summary or "",
-                    "total_score": record.total_score or 0,
+                    **report,
+                    "total_score": calculated_total_score,
                 },
             }
 
@@ -1120,36 +1225,57 @@ class PracticeService:
         """重新生成评估报告（用于调试）"""
         from sqlalchemy import select as sa_select
         
+        logger.info(f"开始重新生成评估报告，record_id={record_id}")
+        
         async with get_db() as session:
-            # 获取记录
-            result = await session.execute(
-                sa_select(CourseRecordRow).where(CourseRecordRow.id == record_id)
-            )
-            record = result.scalar_one_or_none()
-            if not record:
-                raise ValueError(f"练习记录 {record_id} 不存在")
-            
-            # 获取对话历史
-            dialogs_result = await session.execute(
-                sa_select(DialogDetailRow).where(DialogDetailRow.record_id == record_id)
-            )
-            dialogs = dialogs_result.scalars().all()
-            
-            # 重新生成报告
-            report = await _generate_report_by_scene(record.scene_id, dialogs)
-            
-            # 更新记录
-            record.summary = report.get("summary", "")
-            record.total_score = report.get("total_score", 0)
-            record.end_time = datetime.now()
-            
-            await session.commit()
-            
-            return {
-                "success": True,
-                "record_id": record.id,
-                "report": report,
-            }
+            try:
+                # 获取记录
+                result = await session.execute(
+                    sa_select(CourseRecordRow).where(CourseRecordRow.id == record_id)
+                )
+                record = result.scalar_one_or_none()
+                if not record:
+                    logger.error(f"练习记录 {record_id} 不存在")
+                    raise ValueError(f"练习记录 {record_id} 不存在")
+                
+                logger.info(f"找到练习记录，scene_id={record.scene_id}")
+                
+                # 获取对话历史
+                dialogs_result = await session.execute(
+                    sa_select(DialogDetailRow).where(DialogDetailRow.record_id == record_id)
+                )
+                dialogs = dialogs_result.scalars().all()
+                logger.info(f"找到 {len(dialogs)} 条对话记录")
+                
+                if not dialogs:
+                    logger.warning(f"练习记录 {record_id} 没有对话历史")
+                
+                # 重新生成报告
+                logger.info(f"开始调用LLM生成报告")
+                report = await _generate_report_by_scene(record.scene_id, dialogs)
+                logger.info(f"报告生成成功")
+                
+                # 更新记录：将完整报告序列化为 JSON 存储到 summary 字段
+                import json
+                record.summary = json.dumps(report, ensure_ascii=False)
+                # 根据实际维度得分计算总分，确保一致性
+                record.total_score = _calc_total_score(report)
+                record.end_time = datetime.now()
+                
+                await session.commit()
+                logger.info(f"练习记录 {record_id} 更新成功")
+                
+                return {
+                    "success": True,
+                    "record_id": record.id,
+                    "total_score": report.get("total_score", 0),
+                    "summary": report.get("summary", ""),
+                    "status": "completed",
+                    "report": report,
+                }
+            except Exception as e:
+                logger.error(f"重新生成报告失败，record_id={record_id}，错误：{str(e)}", exc_info=True)
+                raise
 
     @staticmethod
     async def get_detailed_suggestions(record_id: int, dialog_id: int) -> dict:
@@ -1195,4 +1321,34 @@ class PracticeService:
             "currentCategory": current_category,
             "suggestions": suggestions.get("suggestions", []),
             "polishedExpression": suggestions.get("polishedExpression", ""),
+        }
+
+    @staticmethod
+    async def generate_inspiration(record_id: int) -> dict:
+        """
+        根据当前对话历史生成对话灵感（知识点提示）
+        - 用户在练习过程中点击灵感按钮时调用此接口
+        - 根据场景知识库和当前对话生成相关知识点提示
+        """
+        # 1. 加载记录、课程、场景
+        record, course, scene = await _load_scene_by_record(record_id)
+
+        # 2. 获取对话历史
+        dialogs = await DialogDetailService.get_dialogs_by_record(record_id)
+
+        # 3. 计算当前轮次和对应的考核维度
+        current_round = 0
+        for d in dialogs:
+            if d.speaker == 1 and d.content:  # 学员回复
+                current_round += 1
+        current_category = _get_current_category(scene, current_round, record_id)
+
+        # 4. 生成灵感
+        inspiration = await _generate_inspiration(scene, dialogs)
+
+        return {
+            "recordId": record_id,
+            "currentRound": current_round,
+            "currentCategory": current_category or "综合能力",
+            "inspiration": inspiration,
         }

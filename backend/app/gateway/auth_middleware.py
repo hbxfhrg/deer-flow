@@ -28,15 +28,15 @@ _PUBLIC_PATH_PREFIXES: tuple[str, ...] = (
     "/redoc",
     "/openapi.json",
     # Roleplay public auth endpoints
-    "/api/roleplay/auth/user",
+    "/roleplay/auth/user",
     # Roleplay practice endpoints (free practice mode)
-    "/api/roleplay/practice/",
+    "/roleplay/practice/",
     # Roleplay practice records endpoints
-    "/api/roleplay/practice-records",
+    "/roleplay/practice-records",
     # Roleplay scenes endpoints (for testing)
-    "/api/roleplay/scenes",
+    "/roleplay/scenes",
     # Roleplay courses endpoints (for testing)
-    "/api/roleplay/courses",
+    "/roleplay/courses",
 )
 
 # Exact auth paths that are public (login/register/status check).
@@ -86,6 +86,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        # Skip authentication for OPTIONS requests (CORS preflight)
+        if request.method == "OPTIONS":
+            return await call_next(request)
+            
         if _is_public(request.url.path):
             return await call_next(request)
 

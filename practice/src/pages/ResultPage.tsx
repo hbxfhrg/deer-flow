@@ -1,4 +1,4 @@
-import { ArrowLeft, HelpCircle, Settings, LogOut, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Power, RefreshCw } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { MessageBubble } from '@/components/MessageBubble';
@@ -75,6 +75,7 @@ export function ResultPage() {
             setReport(reportResult.report);
           }
           setIsReportGenerating(false);
+          setIsRegenerating(false);  // 同时重置重新生成状态
           clearInterval(interval);
         } else {
           // 更新进度模拟
@@ -82,6 +83,7 @@ export function ResultPage() {
         }
       } catch (error) {
         clearInterval(interval);
+        setIsRegenerating(false);  // 出错时也重置状态
       }
     }, 2000);
   };
@@ -159,14 +161,12 @@ export function ResultPage() {
             >
               <RefreshCw className={`w-5 h-5 ${isRegenerating ? 'animate-spin' : ''}`} />
             </button>
-            <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-              <HelpCircle className="w-5 h-5" />
-            </button>
-            <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-              <Settings className="w-5 h-5" />
-            </button>
-            <button className="p-2 text-gray-400 hover:text-danger-500 hover:bg-danger-50 rounded-lg transition-colors">
-              <LogOut className="w-5 h-5" />
+            <button 
+              onClick={() => navigate('/')}
+              className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+              title="退出"
+            >
+              <Power className="w-5 h-5" />
             </button>
           </div>
         </div>
@@ -210,19 +210,19 @@ export function ResultPage() {
                 </div>
                 <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-primary-500 transition-all duration-300"
-                    style={{ width: `${generateProgress}%` }}
+                    className="h-full bg-primary-500 transition-all duration-500 animate-pulse"
+                    style={{ width: `${generateProgress > 80 ? 80 : generateProgress}%` }}
                   ></div>
                 </div>
                 <p className="text-gray-500 text-sm mt-2">
-                  正在分析第 {Math.ceil(generateProgress / 20)} / 5 维度...
+                  正在生成报告，请稍候...
                 </p>
               </div>
             )}
 
             {/* 报告内容 */}
             {report ? (
-              <ReportPanel report={report} onRegenerate={handleRegenerateReport} />
+              <ReportPanel report={report} onRegenerate={handleRegenerateReport} isRegenerating={isRegenerating} />
             ) : (
               <div className="flex flex-col items-center justify-center h-64 px-4">
                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">

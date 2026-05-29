@@ -4,6 +4,7 @@ import type { EvaluationReport } from '@/types';
 interface ReportPanelProps {
   report: EvaluationReport;
   onRegenerate?: () => void;
+  isRegenerating?: boolean;
 }
 
 function getScoreColor(score: number): string {
@@ -18,7 +19,7 @@ function getScoreBg(score: number): string {
   return 'bg-red-500';
 }
 
-export function ReportPanel({ report, onRegenerate }: ReportPanelProps) {
+export function ReportPanel({ report, onRegenerate, isRegenerating }: ReportPanelProps) {
   const totalScore = report.total_score ?? 0;
   const dimensionScores = report.dimension_scores || {};
   const dimensionFeedbacks = report.dimension_feedbacks || {};
@@ -37,10 +38,15 @@ export function ReportPanel({ report, onRegenerate }: ReportPanelProps) {
         {onRegenerate && (
           <button
             onClick={onRegenerate}
-            className="p-2 text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors"
-            title="重新生成总结"
+            disabled={isRegenerating}
+            className={`p-2 rounded-lg transition-colors ${
+              isRegenerating
+                ? 'text-gray-400 bg-gray-100 cursor-not-allowed'
+                : 'text-primary-600 bg-primary-50 hover:bg-primary-100'
+            }`}
+            title={isRegenerating ? '正在生成中...' : '重新生成总结'}
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className={`w-4 h-4 ${isRegenerating ? 'animate-spin' : ''}`} />
           </button>
         )}
       </div>

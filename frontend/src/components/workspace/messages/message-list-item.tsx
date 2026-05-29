@@ -74,6 +74,7 @@ export interface RoleplayEvaluation {
   round?: number;
   total_score?: number;
   dimension_scores?: Record<string, number>;
+  dimension_feedbacks?: Record<string, string>;  // 新增：各维度详细反馈
   strengths?: string[];
   improvements?: string[];
   summary?: string;
@@ -162,6 +163,7 @@ function RoleplayScoreButton({
   evaluation: RoleplayEvaluation;
 }) {
   const hasDetailedScore = evaluation.dimension_scores || 
+                           evaluation.dimension_feedbacks ||
                            evaluation.strengths || 
                            evaluation.improvements;
   
@@ -190,7 +192,7 @@ function RoleplayScoreButton({
           )}
         </button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md max-h-[80vh] overflow-hidden flex flex-col">
+      <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <StarIcon className={cn("size-5", isComplete ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground")} />
@@ -208,7 +210,7 @@ function RoleplayScoreButton({
           </DialogTitle>
         </DialogHeader>
         
-        <div className="flex-1 overflow-y-auto space-y-4">
+        <div className="flex-1 overflow-y-auto space-y-4 p-4">
           {/* Round Scores Progress */}
           {roundScores && roundScores.length > 0 && (
             <div>
@@ -243,6 +245,21 @@ function RoleplayScoreButton({
                       </div>
                       <span className="text-sm font-medium w-8 text-right">{score}</span>
                     </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Dimension Feedbacks */}
+          {evaluation.dimension_feedbacks && Object.keys(evaluation.dimension_feedbacks).length > 0 && (
+            <div>
+              <div className="text-sm text-muted-foreground mb-2">维度详细反馈</div>
+              <div className="space-y-3">
+                {Object.entries(evaluation.dimension_feedbacks).map(([dimension, feedback]) => (
+                  <div key={dimension} className="rounded bg-secondary/30 p-3">
+                    <div className="text-sm font-medium text-foreground mb-1">{dimension}</div>
+                    <div className="text-sm text-muted-foreground whitespace-pre-wrap">{feedback}</div>
                   </div>
                 ))}
               </div>

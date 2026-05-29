@@ -265,7 +265,9 @@ class PracticeRecordService:
         course_id: int = None,
         start_time: str = None,
         end_time: str = None,
-        status: str = None
+        status: str = None,
+        page: int = 1,
+        page_size: int = 20
     ):
         async with get_db() as session:
             # 使用 CourseRecordRow (pract_course_record) 作为主表
@@ -289,6 +291,10 @@ class PracticeRecordService:
             elif status == "in_progress":
                 query = query.where(CourseRecordRow.end_time.is_(None))
             query = query.order_by(desc(CourseRecordRow.start_time))
+            
+            # 添加分页支持
+            offset = (page - 1) * page_size
+            query = query.offset(offset).limit(page_size)
             result = await session.execute(query)
             
             records = []

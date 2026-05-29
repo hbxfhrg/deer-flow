@@ -52,7 +52,7 @@ export function MessageBubble({ message, isTyping, recordId, isEvaluating, onRet
     <div className={`flex mb-4 message-bubble ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div className={`flex flex-col gap-2 max-w-[85%] ${isUser ? 'items-end' : 'items-start'}`}>
         {/* 消息主体 */}
-        <div className={`flex items-end gap-2 ${isUser ? 'flex-row-reverse' : ''}`}>
+        <div className={`flex items-start gap-2 ${isUser ? 'flex-row-reverse' : ''}`}>
           {/* 头像 */}
           <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
             isUser ? 'bg-primary-500' : 'bg-success-500'

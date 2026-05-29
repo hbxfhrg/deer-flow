@@ -180,7 +180,9 @@ export const api = {
       userName?: string,
       startTime?: string,
       endTime?: string,
-      status?: string
+      status?: string,
+      page: number = 1,
+      pageSize: number = 20
     ): Promise<any[]> {
       const params: Record<string, string> = {};
       if (courseId) params.course_id = courseId.toString();
@@ -188,6 +190,8 @@ export const api = {
       if (startTime) params.start_time = startTime;
       if (endTime) params.end_time = endTime;
       if (status) params.status = status;
+      params.page = page.toString();
+      params.page_size = pageSize.toString();
       const response = await axiosInstance.get('/roleplay/practice-records', { params });
       return response.data.records;
     },
@@ -272,6 +276,16 @@ export const api = {
       status?: string;
     }> {
       const response = await axiosInstance.get(`/roleplay/practice/${recordId}/report`);
+      return response.data;
+    },
+    
+    async getInspiration(recordId: number): Promise<{
+      recordId: number;
+      currentRound: number;
+      currentCategory: string;
+      inspiration: Array<{ category: string; content: string }>;
+    }> {
+      const response = await axiosInstance.get(`/roleplay/practice/${recordId}/inspiration`);
       return response.data;
     },
     

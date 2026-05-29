@@ -1,12 +1,13 @@
-import { ArrowLeft, HelpCircle, Settings, LogOut } from 'lucide-react';
+import { ArrowLeft, LogOut, Power } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { MessageBubble } from '@/components/MessageBubble';
 import { EvaluationCard } from '@/components/EvaluationCard';
 import { ChatInput } from '@/components/ChatInput';
+import { InspirationPanel } from '@/components/InspirationPanel';
 import { useRoleplay } from '@/hooks/useRoleplay';
 import api from '../api';
-import type { Course } from '@/types';
+import type { Course, Scene } from '@/types';
 
 export function ChatPage() {
   const navigate = useNavigate();
@@ -14,12 +15,21 @@ export function ChatPage() {
   const courseId = searchParams.get('courseId');
   const recordId = searchParams.get('recordId');
   const [courseInfo, setCourseInfo] = useState<Course | null>(null);
+  const [sceneInfo, setSceneInfo] = useState<Scene | null>(null);
 
   // 加载课程信息
   useEffect(() => {
     if (courseId) {
       api.courses.get(Number(courseId)).then(data => {
-        if (data) setCourseInfo(data);
+        if (data) {
+          setCourseInfo(data);
+          // 如果课程有场景ID，加载场景信息
+          if (data.sceneId) {
+            api.scenes.get(String(data.sceneId)).then(scene => {
+              if (scene) setSceneInfo(scene);
+            }).catch(() => {});
+          }
+        }
       }).catch(() => {});
     }
   }, [courseId]);
@@ -82,15 +92,25 @@ export function ChatPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-              <HelpCircle className="w-5 h-5" />
-            </button>
-            <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-              <Settings className="w-5 h-5" />
-            </button>
-            <button className="p-2 text-gray-400 hover:text-danger-500 hover:bg-danger-50 rounded-lg transition-colors">
-              <LogOut className="w-5 h-5" />
-            </button>
+            {/* 轮次显示 */}
+            {messages.length > 0 && (
+              <div className="px-3 py-1.5 bg-gray-100 rounded-full">
+                <span className="text-xs text-gray-600">
+                  {currentRound}/{totalRounds}
+                </span>
+              </div>
+            )}
+            {/* 结束对练按钮 - 电源符号 */}
+            {messages.length > 0 && !isComplete && (
+              <button
+                onClick={endPractice}
+                disabled={isLoading}
+                className="p-2 text-gray-400 hover:text-danger-500 hover:bg-danger-50 rounded-lg transition-colors disabled:opacity-50"
+                title="结束对练"
+              >
+                <Power className="w-5 h-5" />
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -174,22 +194,20 @@ export function ChatPage() {
 
           {/* 输入框 / 结束面板 */}
           {messages.length > 0 && !isComplete && (
-            <ChatInput onSend={sendMessage} disabled={isLoading} />
-          )}
-          {messages.length > 0 && !isComplete && (
-            <div className="bg-gray-50 border-t border-gray-100 px-4 py-2 flex items-center justify-between">
-              <span className="text-xs text-gray-400">
-                第 {currentRound} / {totalRounds} 轮
-              </span>
-              <button
-                onClick={endPractice}
-                disabled={isLoading}
-                className="px-4 py-1.5 text-xs text-red-500 border border-red-200 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
-              >
-                结束对练
-              </button>
+            <div className="relative px-4 pb-4">
+              <div className="flex items-center gap-3">
+                <InspirationPanel
+                  recordId={currentRecordId}
+                  knowledgeBase={sceneInfo?.knowledgeBase}
+                  summaryText={sceneInfo?.summaryText}
+                />
+                <div className="flex-1">
+                  <ChatInput onSend={sendMessage} disabled={isLoading} />
+                </div>
+              </div>
             </div>
           )}
+
           {isComplete && (
             <div className="bg-green-50 border-t border-green-100 px-4 py-3 text-center">
               <span className="text-sm text-green-600 font-medium">✓ 对练已完成，正在跳转...</span>

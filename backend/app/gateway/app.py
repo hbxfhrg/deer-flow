@@ -393,8 +393,14 @@ This gateway provides custom endpoints for models, MCP configuration, skills, an
     # Stateless Runs API (stream/wait without a pre-existing thread)
     app.include_router(runs.router)
 
-    # Roleplay API is mounted at /api/roleplay
+    # Roleplay API is mounted at /roleplay
     app.include_router(roleplay.router)
+    
+    # Also mount roleplay routes at /api/roleplay for backward compatibility
+    from fastapi import APIRouter
+    roleplay_api_router = APIRouter(prefix="/api", tags=["roleplay"])
+    roleplay_api_router.include_router(roleplay.router, prefix="")
+    app.include_router(roleplay_api_router)
 
     @app.get("/health", tags=["health"])
     async def health_check() -> dict:

@@ -82,14 +82,6 @@ export function StartPage() {
           </div>
         )}
       </div>
-
-      {/* 今日建议 */}
-      <div className="bg-amber-50 rounded-xl p-4">
-        <h3 className="font-semibold text-amber-800 mb-2">💡 今日建议</h3>
-        <p className="text-sm text-amber-700">
-          今天可以尝试新场景，重点练习沟通与应变能力。记住要多使用具体数据来说服对方！
-        </p>
-      </div>
     </div>
   );
 }
