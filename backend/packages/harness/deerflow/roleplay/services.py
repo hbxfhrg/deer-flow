@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import uuid4
 from sqlalchemy import select, desc, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -412,14 +412,43 @@ class StatisticsService:
         async with sf() as session:
             record_result = await session.execute(
                 select(
-                    func.count(PracticeRecordRow.record_id).label("total_practices"),
+                    func.count(CourseRecordRow.id).label("practice_count"),
                     func.sum(
-                        func.strftime('%s', PracticeRecordRow.end_time) - func.strftime('%s', PracticeRecordRow.start_time)
+                        func.unix_timestamp(CourseRecordRow.end_time) - func.unix_timestamp(CourseRecordRow.start_time)
                     ).label("total_duration"),
-                    func.avg(PracticeRecordRow.total_score).label("avg_score")
-                ).where(PracticeRecordRow.user_name == user_name)
+                    func.avg(CourseRecordRow.total_score).label("avg_score")
+                ).where(CourseRecordRow.user_name == user_name)
             )
-            return record_result.first()
+            basic_stats = record_result.first()
+            
+            dates_result = await session.execute(
+                select(
+                    func.date(CourseRecordRow.start_time).label("practice_date")
+                ).where(CourseRecordRow.user_name == user_name)
+                .distinct()
+                .order_by(func.date(CourseRecordRow.start_time).desc())
+            )
+            practice_dates = [row for row in dates_result.scalars().all()]
+            
+            continuous_days = 0
+            if practice_dates:
+                today = datetime.now().date()
+                last_practice_date = practice_dates[0]
+                if last_practice_date == today or last_practice_date == today - timedelta(days=1):
+                    continuous_days = 1
+                    for i in range(1, len(practice_dates)):
+                        expected_date = practice_dates[i-1] - timedelta(days=1)
+                        if practice_dates[i] == expected_date:
+                            continuous_days += 1
+                        else:
+                            break
+            
+            return {
+                "practice_count": basic_stats.practice_count if basic_stats else 0,
+                "total_duration": basic_stats.total_duration if basic_stats else 0,
+                "avg_score": basic_stats.avg_score if basic_stats else 0,
+                "continuous_days": continuous_days
+            }
 
     @staticmethod
     async def get_scene_stats(course_id: int = None):

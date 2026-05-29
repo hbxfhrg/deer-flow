@@ -33,6 +33,11 @@ export function MessageBubble({ message, isTyping, recordId, isEvaluating, onRet
         try {
           // 从 message.id 中提取 dialog_id（格式：msg-{dialog_id}）
           const dialogId = parseInt(message.id.replace('msg-', ''));
+          // 检查 dialogId 是否有效
+          if (isNaN(dialogId)) {
+            console.warn('Invalid dialogId:', message.id);
+            return;
+          }
           const response = await api.practice.getSuggestions(recordId, dialogId);
           setDetailedEvaluation({
             suggestions: response.suggestions,

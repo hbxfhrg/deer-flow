@@ -1,5 +1,5 @@
 import { ArrowLeft, Power, RefreshCw } from 'lucide-react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { MessageBubble } from '@/components/MessageBubble';
 import { ReportPanel } from '@/components/ReportPanel';
@@ -8,8 +8,8 @@ import type { Message, EvaluationReport } from '@/types';
 
 export function ResultPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const recordId = searchParams.get('recordId');
+  const params = useParams();
+  const recordId = params.id;
   const [activeTab, setActiveTab] = useState<'conversation' | 'report'>('report'); // 默认显示报告
   const [messages, setMessages] = useState<Message[]>([]);
   const [report, setReport] = useState<EvaluationReport | null>(null);

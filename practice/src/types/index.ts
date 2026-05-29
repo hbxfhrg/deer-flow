@@ -84,6 +84,7 @@ export interface Course {
   sceneDescription?: string | null; // 关联的场景描述（后端返回）
   simulatedRoleId?: number | null; // 关联的模拟角色 ID
   practiceMode: string; // text: 文本，voice: 语音，call: 模拟电话
+  automatically: number; // 是否自动播放（0: 否，1: 是）
   difficulty?: number | null;
   totalScore?: number;
   passingScore?: number;
@@ -115,6 +116,7 @@ export interface PracticeStartResponse {
   totalRounds: number;
   customerMessage: string;
   round: number;
+  practiceMode: string; // text | voice
 }
 
 export interface PracticeTurnResponse {

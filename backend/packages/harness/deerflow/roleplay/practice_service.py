@@ -881,6 +881,7 @@ class PracticeService:
             "totalRounds": total_rounds,
             "customerMessage": opening_message,
             "round": 1,  # 开场白算第1轮开始
+            "practiceMode": course.practice_mode,
         }
 
     @staticmethod

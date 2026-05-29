@@ -14,12 +14,20 @@ const STATUS_OPTIONS = [
   { value: 2, label: '已结束' },
 ];
 
+// 练习模式选项
+const PRACTICE_MODES = [
+  { value: 'text', label: '文本' },
+  { value: 'voice', label: '语音' },
+];
+
 // 默认空表单
 const emptyForm = () => ({
   course_name: '',
   courseType: 1,
   sceneId: undefined as number | undefined,
   simulatedRoleId: undefined as number | undefined,
+  practiceMode: 'text',
+  automatically: 0,
   difficulty: undefined as number | undefined,
   totalScore: 100,
   passingScore: 60,
@@ -107,6 +115,8 @@ export function CoursePage() {
       courseType: course.courseType ?? 1,
       sceneId: course.sceneId ?? undefined,
       simulatedRoleId: course.simulatedRoleId ?? undefined,
+      practiceMode: course.practiceMode || 'text',
+      automatically: course.automatically ?? 0,
       difficulty: course.difficulty ?? undefined,
       totalScore: course.totalScore ?? 100,
       passingScore: course.passingScore ?? 60,
@@ -133,6 +143,8 @@ export function CoursePage() {
         courseType: form.courseType,
         sceneId: form.sceneId,
         simulatedRoleId: form.simulatedRoleId,
+        practiceMode: form.practiceMode,
+        automatically: form.automatically,
         difficulty: form.difficulty,
         totalScore: form.totalScore,
         passingScore: form.passingScore,
@@ -169,6 +181,8 @@ export function CoursePage() {
       if (ef.courseType !== editingCourse.courseType) payload.courseType = ef.courseType;
       if (ef.sceneId !== editingCourse.sceneId) payload.sceneId = ef.sceneId;
       if (ef.simulatedRoleId !== editingCourse.simulatedRoleId) payload.simulatedRoleId = ef.simulatedRoleId;
+      if (ef.practiceMode !== (editingCourse.practiceMode || 'text')) payload.practiceMode = ef.practiceMode;
+      if (ef.automatically !== (editingCourse.automatically ?? 0)) payload.automatically = ef.automatically;
       if (ef.difficulty !== editingCourse.difficulty) payload.difficulty = ef.difficulty;
       if (ef.totalScore !== (editingCourse.totalScore ?? 100)) payload.totalScore = ef.totalScore;
       if (ef.passingScore !== (editingCourse.passingScore ?? 60)) payload.passingScore = ef.passingScore;
@@ -260,8 +274,24 @@ export function CoursePage() {
           </div>
         </div>
 
-        {/* 练习模式 - 隐藏 */}
-        <input type="hidden" value="text" />
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">练习模式</label>
+            <select value={f.practiceMode} onChange={e => setter(prev => ({ ...prev, practiceMode: e.target.value }))}
+              className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500">
+              {PRACTICE_MODES.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">是否自动播放</label>
+            <select value={f.automatically} onChange={e => setter(prev => ({ ...prev, automatically: Number(e.target.value) }))}
+              className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500">
+              <option value={0}>否</option>
+              <option value={1}>是</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       {/* ========== 评分与规则 ========== */}

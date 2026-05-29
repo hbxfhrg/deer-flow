@@ -1,17 +1,36 @@
-import { User, Trophy, BookOpen, Settings, HelpCircle, LogOut, ChevronRight, Star } from 'lucide-react';
+import { User, Trophy, BookOpen, HelpCircle, LogOut, ChevronRight, Star } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ChevronDown } from 'lucide-react';
 import { api } from '@/api';
 import type { UserInfo } from '@/types';
 
+interface PracticeRecord {
+  id: number;
+  courseName: string;
+  sceneName: string;
+  totalScore: number;
+  startTime: string;
+  practiceMode: string;
+}
+
 export function ProfilePage() {
+  const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState<string>('overview');
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [expandedHelp, setExpandedHelp] = useState<string | null>(null);
+  const [userStats, setUserStats] = useState([
+    { label: '练习次数', value: '0', icon: BookOpen, color: 'bg-blue-100 text-blue-600' },
+    { label: '平均得分', value: '0', icon: Trophy, color: 'bg-yellow-100 text-yellow-600' },
+    { label: '连续天数', value: '0', icon: Star, color: 'bg-purple-100 text-purple-600' },
+  ]);
+  const [practiceHistory, setPracticeHistory] = useState<PracticeRecord[]>([]);
 
   useEffect(() => {
     loadUserInfo();
+    loadUserStats();
+    loadPracticeHistory();
   }, []);
 
   const loadUserInfo = async () => {
@@ -20,6 +39,42 @@ export function ProfilePage() {
       setUserInfo(user);
     } catch (error) {
       console.error('Failed to load user info:', error);
+    }
+  };
+
+  const loadUserStats = async () => {
+    try {
+      const user = api.auth.getCurrentUser();
+      if (user) {
+        const stats = await api.statistics.getUserStats(user.user_name || '');
+        setUserStats([
+          { label: '练习次数', value: stats.practice_count?.toString() || '0', icon: BookOpen, color: 'bg-blue-100 text-blue-600' },
+          { label: '平均得分', value: stats.avg_score?.toString() || '0', icon: Trophy, color: 'bg-yellow-100 text-yellow-600' },
+          { label: '连续天数', value: stats.continuous_days?.toString() || '0', icon: Star, color: 'bg-purple-100 text-purple-600' },
+        ]);
+      }
+    } catch (error) {
+      console.error('Failed to load user stats:', error);
+    }
+  };
+
+  const loadPracticeHistory = async () => {
+    try {
+      const user = api.auth.getCurrentUser();
+      if (user) {
+        const records = await api.practiceRecords.list(undefined, user.user_name, undefined, undefined, 'completed', 1, 10);
+        const history: PracticeRecord[] = records.map((item: any) => ({
+          id: item.recordId,
+          courseName: item.courseName || '未知课程',
+          sceneName: item.sceneName || '未知场景',
+          totalScore: item.totalScore || 0,
+          startTime: item.startTime,
+          practiceMode: item.practiceMode || 'text',
+        }));
+        setPracticeHistory(history);
+      }
+    } catch (error) {
+      console.error('Failed to load practice history:', error);
     } finally {
       setLoading(false);
     }
@@ -31,16 +86,9 @@ export function ProfilePage() {
     }
   };
 
-  const userStats = [
-    { label: '练习次数', value: '45', icon: BookOpen, color: 'bg-blue-100 text-blue-600' },
-    { label: '平均得分', value: '82', icon: Trophy, color: 'bg-yellow-100 text-yellow-600' },
-    { label: '连续天数', value: '15', icon: Star, color: 'bg-purple-100 text-purple-600' },
-  ];
-
   const menuItems = [
     { id: 'overview', label: '学习概览', icon: BookOpen },
     { id: 'history', label: '练习记录', icon: Trophy },
-    { id: 'settings', label: '设置', icon: Settings },
     { id: 'help', label: '帮助与反馈', icon: HelpCircle },
   ];
 
@@ -64,94 +112,42 @@ export function ProfilePage() {
                 );
               })}
             </div>
-
-            {/* 学习进度 */}
-            <div className="bg-white rounded-xl p-4">
-              <h3 className="font-semibold text-gray-800 mb-3">学习进度</h3>
-              <div className="space-y-3">
-                {['汽车销售', '手机销售', '保险推销'].map((item, index) => (
-                  <div key={index}>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="text-gray-600">{item}</span>
-                      <span className="text-primary-500 font-medium">{Math.floor(Math.random() * 60 + 40)}%</span>
-                    </div>
-                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-primary-500 rounded-full"
-                        style={{ width: `${Math.floor(Math.random() * 60 + 40)}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* 最近练习 */}
-            <div className="bg-white rounded-xl p-4">
-              <h3 className="font-semibold text-gray-800 mb-3">最近练习</h3>
-              <div className="space-y-3">
-                {[
-                  { scene: '汽车销售', date: '今天', score: 85 },
-                  { scene: '手机销售', date: '昨天', score: 78 },
-                  { scene: '汽车销售', date: '2天前', score: 92 },
-                ].map((item, index) => (
-                  <div key={index} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
-                    <div>
-                      <p className="text-sm font-medium text-gray-800">{item.scene}</p>
-                      <p className="text-xs text-gray-400">{item.date}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className={`text-lg font-bold ${item.score >= 80 ? 'text-success-500' : item.score >= 60 ? 'text-yellow-500' : 'text-danger-500'}`}>
-                        {item.score}
-                      </p>
-                      <p className="text-xs text-gray-400">分</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
         );
       case 'history':
         return (
           <div className="space-y-3">
-            {[1, 2, 3, 4, 5].map((item) => (
-              <div key={item} className="bg-white rounded-xl p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-medium text-gray-800">汽车销售练习 #{item}</span>
-                  <span className="text-xs text-gray-400">2026-05-{14 - item}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-2xl font-bold ${item % 3 === 0 ? 'text-success-500' : 'text-primary-500'}`}>
-                      {75 + item * 3}
-                    </span>
-                    <span className="text-sm text-gray-500">分</span>
+            {practiceHistory.length === 0 ? (
+              <div className="text-center py-8 text-gray-400">
+                <Trophy className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                <p>暂无练习记录</p>
+              </div>
+            ) : (
+              practiceHistory.map((record) => {
+                const dateStr = record.startTime ? new Date(record.startTime).toLocaleDateString('zh-CN') : '';
+                const isHighScore = record.totalScore >= 80;
+                return (
+                  <div key={record.id} className="bg-white rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-medium text-gray-800">{record.courseName}</span>
+                      <span className="text-xs text-gray-400">{dateStr}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-2xl font-bold ${isHighScore ? 'text-success-500' : 'text-primary-500'}`}>
+                          {record.totalScore}
+                        </span>
+                        <span className="text-sm text-gray-500">分</span>
+                      </div>
+                      <button 
+                        onClick={() => navigate(`/result/${record.id}`)}
+                        className="text-sm text-primary-500 hover:text-primary-600"
+                      >查看详情</button>
+                    </div>
                   </div>
-                  <button className="text-sm text-primary-500 hover:text-primary-600">查看详情</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        );
-      
-      case 'settings':
-        return (
-          <div className="space-y-2">
-            {[
-              { label: '语言设置', value: '中文' },
-              { label: '音效设置', value: '开启' },
-              { label: '震动反馈', value: '开启' },
-              { label: '数据同步', value: '开启' },
-            ].map((item, index) => (
-              <div key={index} className="bg-white rounded-xl p-4 flex items-center justify-between">
-                <span className="text-gray-800">{item.label}</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-500">{item.value}</span>
-                  <ChevronRight className="w-5 h-5 text-gray-400" />
-                </div>
-              </div>
-            ))}
+                );
+              })
+            )}
           </div>
         );
       
@@ -235,14 +231,6 @@ export function ProfilePage() {
                     )}
                   </div>
                 ))}
-              </div>
-            </div>
-            <div className="bg-white rounded-xl p-4">
-              <h3 className="font-semibold text-gray-800 mb-2">联系我们</h3>
-              <p className="text-sm text-gray-500 mb-3">如有任何问题或建议，请通过以下方式联系我们：</p>
-              <div className="space-y-2">
-                <p className="text-sm text-gray-600">📧 邮箱：support@deerflow.com</p>
-                <p className="text-sm text-gray-600">📱 客服热线：400-123-4567</p>
               </div>
             </div>
           </div>

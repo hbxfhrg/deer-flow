@@ -86,7 +86,7 @@ function App() {
 
           {/* 结果页面 */}
           <Route 
-            path="/result" 
+            path="/result/:id" 
             element={
               <ProtectedRoute>
                 <ResultPage />

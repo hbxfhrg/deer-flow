@@ -8,6 +8,7 @@ interface PracticeHistoryRecord {
   courseId: number;
   courseName: string;
   sceneName: string;
+  practiceMode: string;
   startTime: string;
   endTime?: string;
   totalScore?: number;
@@ -78,6 +79,7 @@ export function HistoryPage() {
             courseId: item.courseId,
             courseName: item.courseName || '未知课程',
             sceneName: item.sceneName || '未知场景',
+            practiceMode: item.practiceMode || 'text',
             startTime: item.startTime,
             endTime: item.endTime,
             totalScore: item.totalScore,
@@ -141,7 +143,7 @@ export function HistoryPage() {
       navigate(`/chat?recordId=${record.id}`);
     } else {
       // 已完成的练习，查看报告
-      navigate(`/result?recordId=${record.id}`);
+      navigate(`/result/${record.id}`);
     }
   };
 
@@ -287,6 +289,13 @@ export function HistoryPage() {
                       }`}
                     >
                       {record.status === 'completed' ? '已完成' : record.status === 'aborted' ? '中途退出' : '进行中'}
+                    </span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                      record.practiceMode === 'voice' 
+                        ? 'bg-orange-100 text-orange-600' 
+                        : 'bg-blue-100 text-blue-600'
+                    }`}>
+                      {record.practiceMode === 'voice' ? '语音' : '文本'}
                     </span>
                   </div>
                   <p className="text-sm text-gray-500 mb-3">{record.sceneName}</p>

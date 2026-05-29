@@ -65,7 +65,16 @@ export function StartPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <h4 className="font-medium text-gray-800 truncate">{course.course_name}</h4>
-                      <p className="text-xs text-gray-400 truncate">{course.sceneName || '未关联场景'}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs text-gray-400 truncate">{course.sceneName || '未关联场景'}</p>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          course.practiceMode === 'voice' 
+                            ? 'bg-orange-100 text-orange-600' 
+                            : 'bg-blue-100 text-blue-600'
+                        }`}>
+                          {course.practiceMode === 'voice' ? '语音' : '文本'}
+                        </span>
+                      </div>
                     </div>
                     <button
                       onClick={() => handleStartPractice(course.courseId)}

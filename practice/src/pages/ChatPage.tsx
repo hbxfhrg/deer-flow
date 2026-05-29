@@ -16,6 +16,7 @@ export function ChatPage() {
   const recordId = searchParams.get('recordId');
   const [courseInfo, setCourseInfo] = useState<Course | null>(null);
   const [sceneInfo, setSceneInfo] = useState<Scene | null>(null);
+  const [showEndConfirm, setShowEndConfirm] = useState(false);
 
   // 加载课程信息
   useEffect(() => {
@@ -45,6 +46,7 @@ export function ChatPage() {
     recordId: currentRecordId,
     showCompleteModal,
     isReportReady,
+    practiceMode,
     initConversation,
     sendMessage,
     endPractice,
@@ -103,7 +105,7 @@ export function ChatPage() {
             {/* 结束对练按钮 - 电源符号 */}
             {messages.length > 0 && !isComplete && (
               <button
-                onClick={endPractice}
+                onClick={() => setShowEndConfirm(true)}
                 disabled={isLoading}
                 className="p-2 text-gray-400 hover:text-danger-500 hover:bg-danger-50 rounded-lg transition-colors disabled:opacity-50"
                 title="结束对练"
@@ -202,7 +204,7 @@ export function ChatPage() {
                   summaryText={sceneInfo?.summaryText}
                 />
                 <div className="flex-1">
-                  <ChatInput onSend={sendMessage} disabled={isLoading} />
+                  <ChatInput onSend={sendMessage} disabled={isLoading} practiceMode={practiceMode} />
                 </div>
               </div>
             </div>
@@ -268,6 +270,50 @@ export function ChatPage() {
                     生成中
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 结束对练确认对话框 */}
+      {showEndConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
+            {/* 图标 */}
+            <div className="flex justify-center pt-6">
+              <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center">
+                <svg className="w-8 h-8 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+            </div>
+            
+            {/* 标题和描述 */}
+            <div className="text-center px-6 py-4">
+              <h3 className="text-lg font-semibold text-gray-800 mb-2">确定要结束这次练习吗？</h3>
+              <p className="text-sm text-gray-500">
+                结束后将跳转到评测报告页面
+              </p>
+            </div>
+            
+            {/* 按钮 */}
+            <div className="px-6 pb-6 space-y-3">
+              <button
+                onClick={() => {
+                  endPractice();
+                  setShowEndConfirm(false);
+                }}
+                disabled={isLoading}
+                className="w-full py-3 bg-primary-500 text-white rounded-xl font-medium hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                结束对话，并查看评测报告
+              </button>
+              <button
+                onClick={() => setShowEndConfirm(false)}
+                className="w-full py-3 bg-gray-100 text-gray-600 rounded-xl font-medium hover:bg-gray-200 transition-colors"
+              >
+                继续练习
               </button>
             </div>
           </div>

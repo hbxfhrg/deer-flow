@@ -16,6 +16,7 @@ export function useRoleplay(courseId: number | null, existingRecordId: number | 
   const [showCompleteModal, setShowCompleteModal] = useState(false); // 对练完成模态框
   const [isReportReady, setIsReportReady] = useState(false); // 报告是否准备好
   const [pendingCompleteModal, setPendingCompleteModal] = useState(false); // 待显示的完成模态框（等待AI消息渲染）
+  const [practiceMode, setPracticeMode] = useState<string>('text'); // 练习模式：text | voice
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // 滚动到底部
@@ -57,6 +58,7 @@ export function useRoleplay(courseId: number | null, existingRecordId: number | 
         setRecordId(res.recordId);
         setTotalRounds(res.totalRounds);
         setCurrentRound(1);
+        setPracticeMode(res.practiceMode || 'text');
         const aiMsg: Message = {
           id: `ai-${Date.now()}`,
           role: 'assistant',
@@ -241,6 +243,7 @@ export function useRoleplay(courseId: number | null, existingRecordId: number | 
     recordId,
     showCompleteModal,
     isReportReady,
+    practiceMode,
     initConversation,
     sendMessage,
     endPractice,

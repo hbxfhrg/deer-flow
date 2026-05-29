@@ -42,7 +42,8 @@ class CourseRow(RoleplayBase):
     course_type: Mapped[int] = mapped_column(Integer, nullable=False, default=1)  # 1: 练习，2: 考试
     scene_id: Mapped[int] = mapped_column(BigInteger, nullable=False)  # 关联的剧本 ID
     simulated_role_id: Mapped[int] = mapped_column(BigInteger, nullable=True)  # 关联的模拟角色 ID
-    practice_mode: Mapped[str] = mapped_column(String(20), nullable=False)  # text: 文本，voice: 语音，call: 模拟电话
+    practice_mode: Mapped[str] = mapped_column(String(20), nullable=False, default='text')  # text: 文本，voice: 语音，call: 模拟电话
+    automatically: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # 是否自动播放（0: 否，1: 是）
     difficulty: Mapped[int] = mapped_column(Integer, nullable=True)  # 难度等级
     total_score: Mapped[int] = mapped_column(Integer, nullable=True, default=100)  # 课程总分
     passing_score: Mapped[int] = mapped_column(Integer, nullable=True, default=60)  # 达标分数要求

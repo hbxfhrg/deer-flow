@@ -175,6 +175,7 @@ class CourseCreate(BaseModel):
     scene_id: Optional[int] = Field(default=None, alias="sceneId")
     simulated_role_id: Optional[int] = Field(default=None, alias="simulatedRoleId")
     practice_mode: Optional[str] = Field(default="text", alias="practiceMode")  # text/voice/call
+    automatically: Optional[int] = Field(default=0, alias="automatically")  # 是否自动播放（0: 否，1: 是）
     difficulty: Optional[int] = Field(default=None, alias="difficulty")
     total_score: Optional[int] = Field(default=100, alias="totalScore")
     passing_score: Optional[int] = Field(default=60, alias="passingScore")
@@ -194,6 +195,7 @@ class CourseUpdate(BaseModel):
     scene_id: Optional[int] = Field(default=None, alias="sceneId")
     simulated_role_id: Optional[int] = Field(default=None, alias="simulatedRoleId")
     practice_mode: Optional[str] = Field(default=None, alias="practiceMode")
+    automatically: Optional[int] = Field(default=None, alias="automatically")  # 是否自动播放（0: 否，1: 是）
     difficulty: Optional[int] = Field(default=None, alias="difficulty")
     total_score: Optional[int] = Field(default=None, alias="totalScore")
     passing_score: Optional[int] = Field(default=None, alias="passingScore")
@@ -217,6 +219,7 @@ def _course_to_dict(course, scene_map: dict = None):
         "sceneDescription": scene_map.get(f"desc_{course.scene_id}") if scene_map and course.scene_id else None,
         "simulatedRoleId": course.simulated_role_id,
         "practiceMode": course.practice_mode,
+        "automatically": course.automatically,
         "difficulty": course.difficulty,
         "totalScore": course.total_score,
         "passingScore": course.passing_score,
@@ -489,12 +492,11 @@ async def complete_practice_record(record_id: int, data: PracticeRecordComplete)
 @router.get("/statistics/user/{user_id}", summary="获取用户统计")
 async def get_user_statistics(user_id: str):
     stats = await StatisticsService.get_user_stats(user_id)
-    if not stats:
-        return {"total_practices": 0, "total_duration": 0, "avg_score": 0}
     return {
-        "total_practices": stats.total_practices or 0,
-        "total_duration": stats.total_duration or 0,
-        "avg_score": stats.avg_score or 0
+        "practice_count": stats.get("practice_count", 0),
+        "total_duration": stats.get("total_duration", 0),
+        "avg_score": round(stats.get("avg_score", 0), 2) if stats.get("avg_score") else 0,
+        "continuous_days": stats.get("continuous_days", 0)
     }
 
 @router.get("/statistics/scenes", summary="获取场景统计")
