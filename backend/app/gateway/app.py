@@ -17,6 +17,7 @@ from app.gateway.routers import (
     artifacts,
     assistants_compat,
     auth,
+    asr,
     channels,
     feedback,
     mcp,
@@ -28,7 +29,9 @@ from app.gateway.routers import (
     suggestions,
     thread_runs,
     threads,
+    tts,
     uploads,
+    oss,
 )
 from deerflow.config import app_config as deerflow_app_config
 from deerflow.config.app_config import apply_logging_level
@@ -395,12 +398,21 @@ This gateway provides custom endpoints for models, MCP configuration, skills, an
 
     # Roleplay API is mounted at /roleplay
     app.include_router(roleplay.router)
-    
+
     # Also mount roleplay routes at /api/roleplay for backward compatibility
     from fastapi import APIRouter
     roleplay_api_router = APIRouter(prefix="/api", tags=["roleplay"])
     roleplay_api_router.include_router(roleplay.router, prefix="")
     app.include_router(roleplay_api_router)
+
+    # OSS upload API is mounted at /api/oss
+    app.include_router(oss.router)
+
+    # ASR API is mounted at /api/asr
+    app.include_router(asr.router)
+
+    # TTS API is mounted at /api/tts
+    app.include_router(tts.router)
 
     @app.get("/health", tags=["health"])
     async def health_check() -> dict:
