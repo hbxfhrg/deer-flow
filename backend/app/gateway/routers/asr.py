@@ -1,12 +1,16 @@
-"""ASR API router for speech recognition using FunASR."""
+"""ASR API router for speech recognition using DashScope FunASR."""
 
 import asyncio
 import logging
 import time
 from uuid import uuid4
 
+import dashscope
+from dashscope.audio.asr import Transcription
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
+
+from deerflow.config.app_config import get_app_config
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +23,7 @@ asr_tasks = {}
 class ASRTranscribeRequest(BaseModel):
     """Request model for ASR transcription."""
     
-    model: str = Field(description="ASR model to use", default="fun-asr")
+    model: str = Field(description="ASR model to use", default="paraformer-v2")
     audio_url: str = Field(description="URL of audio file to transcribe")
     language: str = Field(description="Language code", default="zh")
 
@@ -43,7 +47,7 @@ class ASRQueryResponse(BaseModel):
 @router.post("/transcribe", response_model=ASRSubmitResponse)
 async def submit_transcribe(request: ASRTranscribeRequest) -> ASRSubmitResponse:
     """
-    Submit an audio file for transcription using FunASR.
+    Submit an audio file for transcription using DashScope FunASR.
     
     Args:
         request: ASR transcription request containing audio URL and options
@@ -51,6 +55,18 @@ async def submit_transcribe(request: ASRTranscribeRequest) -> ASRSubmitResponse:
     Returns:
         ASRSubmitResponse: Task submission result with task ID
     """
+    config = get_app_config().dashscope
+    
+    if not config.is_configured():
+        raise HTTPException(
+            status_code=500,
+            detail="DashScope not configured. Please set DASHSCOPE_API_KEY in config.yaml or environment variables."
+        )
+    
+    # 设置DashScope API Key
+    dashscope.api_key = config.api_key
+    dashscope.base_http_api_url = config.base_url
+    
     task_id = str(uuid4())
     
     # 初始化任务状态
@@ -62,8 +78,8 @@ async def submit_transcribe(request: ASRTranscribeRequest) -> ASRSubmitResponse:
         "model": request.model
     }
     
-    # 异步处理转写（模拟FunASR调用）
-    asyncio.create_task(process_asr_task(task_id))
+    # 异步处理转写
+    asyncio.create_task(process_asr_task(task_id, request.audio_url, request.model))
     
     return ASRSubmitResponse(
         success=True,
@@ -95,31 +111,60 @@ async def query_transcribe(task_id: str) -> ASRQueryResponse:
     )
 
 
-async def process_asr_task(task_id: str):
+async def process_asr_task(task_id: str, audio_url: str, model: str):
     """
-    Process ASR transcription task asynchronously.
-    Simulates FunASR API call with delay.
+    Process ASR transcription task asynchronously using DashScope API.
     """
     task = asr_tasks.get(task_id)
     if not task:
         return
     
-    # 模拟处理延迟（2-5秒）
+    config = get_app_config().dashscope
+    dashscope.api_key = config.api_key
+    dashscope.base_http_api_url = config.base_url
+    
+    # 更新状态为处理中
     task["status"] = "processing"
-    await asyncio.sleep(3 + time.time() % 3)  # 2-5秒随机延迟
     
-    # 模拟FunASR转写结果
-    # 在实际实现中，这里应该调用FunASR API
-    # 例如：使用funasr-sdk或通过HTTP调用FunASR服务
-    
-    # 模拟转写文本（根据语言返回不同内容）
-    if task["language"] == "zh":
-        # 模拟中文转写结果
-        task["text"] = "你好，我是客服小林，很高兴为你服务。请问有什么可以帮助你的吗？"
-    else:
-        task["text"] = "Hello, this is customer service. How can I help you?"
-    
-    task["status"] = "completed"
+    try:
+        # 调用DashScope FunASR API
+        # 使用异步方式提交转写任务
+        task_response = Transcription.async_call(
+            model=model,
+            file_urls=[audio_url]
+        )
+        
+        if task_response.status_code != 200:
+            raise Exception(f"DashScope API error: {task_response.message}")
+        
+        # 等待转写完成
+        transcription_response = Transcription.wait(task=task_response.output.task_id)
+        
+        if transcription_response.status_code != 200:
+            raise Exception(f"Transcription failed: {transcription_response.message}")
+        
+        # 获取转写结果
+        results = transcription_response.output.get('results', [])
+        if results:
+            # 从第一个结果中提取转写文本
+            result = results[0]
+            transcripts = result.get('transcripts', [])
+            if transcripts:
+                # 合并所有句子
+                full_text = ' '.join([t.get('text', '') for t in transcripts])
+                task["text"] = full_text
+            else:
+                task["text"] = ""
+        else:
+            task["text"] = ""
+        
+        task["status"] = "completed"
+        logger.info(f"ASR transcription completed for task {task_id}")
+        
+    except Exception as e:
+        task["status"] = "failed"
+        task["text"] = ""
+        logger.error(f"ASR transcription failed for task {task_id}: {e}")
     
     # 清理：任务完成后30秒删除（可选）
     asyncio.create_task(cleanup_task(task_id, delay=30))

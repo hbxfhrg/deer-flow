@@ -1,10 +1,12 @@
-"""TTS API router for text-to-speech using Qwen3-TTS-Flash."""
+"""TTS API router for text-to-speech using DashScope Qwen3-TTS-Flash."""
 
 import asyncio
 import logging
 import time
 from uuid import uuid4
 
+import dashscope
+import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
@@ -24,7 +26,7 @@ class TTSSynthesizeRequest(BaseModel):
     
     text: str = Field(description="Text to synthesize")
     model: str = Field(description="TTS model to use", default="qwen3-tts-flash")
-    voice: str = Field(description="Voice name", default="zh-female")
+    voice: str = Field(description="Voice name", default="Cherry")
     language: str = Field(description="Language code", default="zh")
 
 
@@ -47,7 +49,7 @@ class TTSQueryResponse(BaseModel):
 @router.post("/synthesize", response_model=TTSSubmitResponse)
 async def submit_synthesize(request: TTSSynthesizeRequest) -> TTSSubmitResponse:
     """
-    Submit text for synthesis using Qwen3-TTS-Flash.
+    Submit text for synthesis using DashScope Qwen3-TTS-Flash.
     
     Args:
         request: TTS synthesis request containing text and options
@@ -55,6 +57,18 @@ async def submit_synthesize(request: TTSSynthesizeRequest) -> TTSSubmitResponse:
     Returns:
         TTSSubmitResponse: Task submission result with task ID
     """
+    config = get_app_config().dashscope
+    
+    if not config.is_configured():
+        raise HTTPException(
+            status_code=500,
+            detail="DashScope not configured. Please set DASHSCOPE_API_KEY in config.yaml or environment variables."
+        )
+    
+    # 设置DashScope API Key
+    dashscope.api_key = config.api_key
+    dashscope.base_http_api_url = config.base_url
+    
     task_id = str(uuid4())
     
     # 初始化任务状态
@@ -68,7 +82,7 @@ async def submit_synthesize(request: TTSSynthesizeRequest) -> TTSSubmitResponse:
     }
     
     # 异步处理合成
-    asyncio.create_task(process_tts_task(task_id))
+    asyncio.create_task(process_tts_task(task_id, request.text, request.model, request.voice, request.language))
     
     return TTSSubmitResponse(
         success=True,
@@ -100,45 +114,65 @@ async def query_synthesize(task_id: str) -> TTSQueryResponse:
     )
 
 
-async def process_tts_task(task_id: str):
+async def process_tts_task(task_id: str, text: str, model: str, voice: str, language: str):
     """
-    Process TTS synthesis task asynchronously.
-    Simulates Qwen3-TTS-Flash API call with delay.
+    Process TTS synthesis task asynchronously using DashScope API.
     """
     task = tts_tasks.get(task_id)
     if not task:
         return
     
-    # 模拟处理延迟（1-3秒）
+    config = get_app_config().dashscope
+    dashscope.api_key = config.api_key
+    dashscope.base_http_api_url = config.base_url
+    
+    # 更新状态为处理中
     task["status"] = "processing"
-    await asyncio.sleep(1 + time.time() % 2)  # 1-3秒随机延迟
     
     try:
-        # 模拟生成音频文件（实际实现中应调用Qwen3-TTS-Flash API）
-        # 这里生成一个模拟的音频URL
+        # 调用DashScope Qwen3-TTS-Flash API
+        response = dashscope.MultiModalConversation.call(
+            model=model,
+            text=text,
+            voice=voice,
+            language_type="Chinese" if language == "zh" else language,
+            stream=False
+        )
         
-        # 在实际实现中，应该：
-        # 1. 调用Qwen3-TTS-Flash API生成音频
-        # 2. 获取音频数据
-        # 3. 上传到OSS
-        # 4. 返回OSS URL
+        if response.status_code != 200:
+            raise Exception(f"DashScope TTS API error: {response.message}")
         
-        # 模拟：生成一个模拟的音频URL
-        config = get_app_config().oss
-        if config.is_configured():
-            # 如果OSS已配置，生成一个带时间戳的URL
-            audio_url = f"{config.bucket_host}/voice/ai_{task_id[:8]}_{int(time.time())}.mp3"
-        else:
-            # OSS未配置，返回模拟URL
-            audio_url = f"https://example.com/voice/ai_{task_id[:8]}.mp3"
+        # 获取音频URL
+        audio_url = response.output.audio.url
         
-        task["audio_url"] = audio_url
+        # 下载音频并上传到OSS
+        async with httpx.AsyncClient() as client:
+            audio_response = await client.get(audio_url)
+            if audio_response.status_code != 200:
+                raise Exception(f"Failed to download audio from DashScope: {audio_response.status_code}")
+            
+            audio_data = audio_response.content
+            
+            # 上传到OSS
+            oss_config = get_app_config().oss
+            if oss_config.is_configured():
+                filename = generate_filename(f"ai_{task_id[:8]}.mp3")
+                oss_url = await upload_file_to_oss(
+                    file_data=audio_data,
+                    filename=filename,
+                    content_type="audio/mpeg"
+                )
+                task["audio_url"] = oss_url
+            else:
+                # OSS未配置，直接使用DashScope返回的URL
+                task["audio_url"] = audio_url
+        
         task["status"] = "completed"
-        
         logger.info(f"TTS synthesis completed for task {task_id}")
         
     except Exception as e:
         task["status"] = "failed"
+        task["audio_url"] = ""
         logger.error(f"TTS synthesis failed for task {task_id}: {e}")
     
     # 清理：任务完成后30秒删除（可选）
