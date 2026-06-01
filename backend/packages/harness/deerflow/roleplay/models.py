@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from sqlalchemy import JSON, DateTime, String, Integer, Text, Boolean, BigInteger, Float
+from sqlalchemy import JSON, DateTime, String, Integer, Text, Boolean, BigInteger, Float, DECIMAL
 from sqlalchemy.orm import Mapped, mapped_column
 
 from deerflow.roleplay import RoleplayBase
@@ -78,11 +78,13 @@ class DialogDetailRow(RoleplayBase):
     dialog_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     record_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)  # 关联 pract_course_record.id (int)
     speaker: Mapped[int] = mapped_column(Integer, nullable=False)  # 1: 学员, 2: AI/客户
-    content_type: Mapped[int] = mapped_column(Integer, nullable=False, default=1)  # 1: 文本
-    content: Mapped[str] = mapped_column(Text, nullable=False)
-    score: Mapped[float] = mapped_column(Float, nullable=True)
-    feedback: Mapped[str] = mapped_column(Text, nullable=True)
-    create_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    content_type: Mapped[str] = mapped_column(String(20), nullable=False, default="1")  # 内容类型 (1:文本, 2:音频URL)
+    content: Mapped[str] = mapped_column(Text, nullable=False)  # 发言内容
+    content_url: Mapped[str] = mapped_column(String(1000), nullable=True)  # 录音文件地址：AI时存TTS生成的，员工时存上传的
+    intent_analysis: Mapped[str] = mapped_column(JSON, nullable=True)  # AI对这句话的意图分析结果 (JSON)
+    score: Mapped[float] = mapped_column(DECIMAL(5, 2), nullable=True)  # 该句得分（如果有考核点）
+    feedback: Mapped[str] = mapped_column(Text, nullable=True)  # AI对该句的实时反馈或建议
+    create_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)  # 发言时间
 
 
 class CourseRecordRow(RoleplayBase):

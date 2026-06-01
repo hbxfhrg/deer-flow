@@ -1155,6 +1155,8 @@ class PracticeService:
                 "speaker": d.speaker,
                 "content_type": d.content_type,
                 "content": d.content,
+                "content_url": d.content_url,  # 录音文件地址：AI时存TTS生成的，员工时存上传的
+                "intent_analysis": d.intent_analysis,  # AI对这句话的意图分析结果 (JSON)
                 "round_number": current_round,
                 "score": d.score,
                 "feedback": d.feedback,
@@ -1164,6 +1166,7 @@ class PracticeService:
         return {
             "history": result,
             "totalRounds": total_rounds,
+            "practiceMode": record.practice_mode if record else None,
         }
 
     @staticmethod

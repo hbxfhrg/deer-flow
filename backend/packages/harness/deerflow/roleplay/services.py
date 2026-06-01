@@ -367,10 +367,12 @@ class DialogDetailService:
             detail = DialogDetailRow(
                 record_id=data["record_id"],
                 speaker=data["speaker"],
-                content_type=data.get("content_type", 1),
-                content=data["content"],
-                score=data.get("score"),
-                feedback=data.get("feedback"),
+                content_type=data.get("content_type", "1"),  # 内容类型 (1:文本, 2:音频URL)
+                content=data["content"],  # 发言内容
+                content_url=data.get("content_url"),  # 录音文件地址：AI时存TTS生成的，员工时存上传的
+                intent_analysis=data.get("intent_analysis"),  # AI对这句话的意图分析结果 (JSON)
+                score=data.get("score"),  # 该句得分（如果有考核点）
+                feedback=data.get("feedback"),  # AI对该句的实时反馈或建议
                 create_time=now_local(),
             )
             session.add(detail)

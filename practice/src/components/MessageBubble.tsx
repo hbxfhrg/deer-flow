@@ -9,11 +9,48 @@ interface MessageBubbleProps {
   recordId?: number;
   isEvaluating?: boolean; // 评价生成中状态
   onRetry?: () => void; // 重录回调
+  practiceMode?: string; // 练习模式：text 或 voice
 }
 
-export function MessageBubble({ message, isTyping, recordId, isEvaluating, onRetry }: MessageBubbleProps) {
+export function MessageBubble({ message, isTyping, recordId, isEvaluating, onRetry, practiceMode }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackProgress, setPlaybackProgress] = useState(0);
+  
+  // 计算语音时长（模拟）
+  const getVoiceDuration = () => {
+    // 根据文本长度估算语音时长（中文字符数 * 0.3 秒）
+    if (!message.content) return 0;
+    return Math.ceil(message.content.length * 0.3);
+  };
+  
+  // 模拟 TTS 播放
+  const handlePlayVoice = async () => {
+    if (isPlaying) return;
+    
+    setIsPlaying(true);
+    const duration = getVoiceDuration();
+    
+    // 模拟播放进度
+    const interval = setInterval(() => {
+      setPlaybackProgress(prev => {
+        if (prev >= 100) {
+          clearInterval(interval);
+          setIsPlaying(false);
+          return 0;
+        }
+        return prev + (100 / (duration * 10));
+      });
+    }, 100);
+    
+    // 实际播放完成后清理
+    setTimeout(() => {
+      clearInterval(interval);
+      setIsPlaying(false);
+      setPlaybackProgress(0);
+    }, duration * 1000);
+  };
   const [isLoading, setIsLoading] = useState(false);
   const [detailedEvaluation, setDetailedEvaluation] = useState<MessageEvaluation | null>(null);
 
@@ -73,8 +110,33 @@ export function MessageBubble({ message, isTyping, recordId, isEvaluating, onRet
           <div className={`relative px-4 py-3 rounded-2xl ${
             isUser 
               ? 'bg-white text-gray-800 rounded-br-md border border-gray-100 shadow-sm' 
-              : 'bg-white text-gray-800 rounded-bl-md shadow-sm'
+              : 'bg-success-500 text-white rounded-bl-md'
           }`}>
+            {/* 语音时长标签（仅语音模式且非用户消息） */}
+            {practiceMode === 'voice' && !isUser && !isTyping && (
+              <div className="flex items-center gap-2 mb-2">
+                <div 
+                  className={`flex items-center gap-1.5 px-3 py-1.5 bg-white/20 rounded-full text-sm cursor-pointer transition-opacity hover:opacity-80 ${
+                    isPlaying ? 'opacity-100' : 'opacity-70'
+                  }`}
+                  onClick={handlePlayVoice}
+                >
+                  <span className={`w-3 h-3 rounded-full border-2 border-current ${
+                    isPlaying ? 'animate-ping' : ''
+                  }`}></span>
+                  <span>{getVoiceDuration()}"</span>
+                </div>
+                {/* 播放进度条 */}
+                {isPlaying && (
+                  <div className="flex-1 h-1 bg-white/30 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-white rounded-full transition-all duration-100"
+                      style={{ width: `${playbackProgress}%` }}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
             {isTyping ? (
               <div className="flex items-center gap-1">
                 <span className="w-2 h-2 bg-current rounded-full opacity-70 animate-bounce" style={{ animationDelay: '0ms' }} />

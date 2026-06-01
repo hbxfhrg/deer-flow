@@ -93,6 +93,9 @@ export function useRoleplay(courseId: number | null, existingRecordId: number | 
       if (history.length > 0) {
         const lastRound = history[history.length - 1].round_number;
         setCurrentRound(lastRound);
+      } else {
+        // 如果没有历史消息，从第一轮开始
+        setCurrentRound(1);
       }
       
       // 从后端获取总轮次
@@ -102,10 +105,25 @@ export function useRoleplay(courseId: number | null, existingRecordId: number | 
         // 默认总轮次为5（自由式对练）
         setTotalRounds(5);
       }
+      
+      // 设置练习模式
+      if (result.practiceMode) {
+        setPracticeMode(result.practiceMode);
+      } else {
+        // 如果后端没有返回，尝试从课程信息获取
+        if (courseId) {
+          const course = await api.courses.get(courseId);
+          if (course && course.practiceMode) {
+            setPracticeMode(course.practiceMode);
+          }
+        }
+      }
     } catch (e) {
       console.error('Failed to resume conversation:', e);
+    } finally {
+      setIsLoading(false);
     }
-  }, []);
+  }, [courseId]);
 
   // 发送消息
   const sendMessage = useCallback(async (content: string) => {

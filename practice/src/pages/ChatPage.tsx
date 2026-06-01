@@ -172,6 +172,7 @@ export function ChatPage() {
                   isTyping={isTyping && index === messages.length - 1 && message.role === 'assistant'}
                   recordId={Number(recordId) || undefined}
                   isEvaluating={message.isEvaluating}
+                  practiceMode={practiceMode}
                 />
               ))}
               {isTyping && (
