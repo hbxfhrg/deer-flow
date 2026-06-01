@@ -563,6 +563,7 @@ class PracticeStartRequest(BaseModel):
 class PracticeTurnRequest(BaseModel):
     record_id: int = Field(alias="recordId")
     message: str
+    practice_mode: str = Field(alias="practiceMode", default="text")
 
     model_config = {"populate_by_name": True}
 
@@ -584,7 +585,7 @@ async def practice_start(req: PracticeStartRequest):
 async def practice_turn(req: PracticeTurnRequest):
     """存用户话术 → LLM评估 → LLM生成下一条客户回复"""
     try:
-        result = await PracticeService.turn(req.record_id, req.message)
+        result = await PracticeService.turn(req.record_id, req.message, req.practice_mode)
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

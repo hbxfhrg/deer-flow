@@ -85,6 +85,8 @@ export function useRoleplay(courseId: number | null, existingRecordId: number | 
         role: item.speaker === 1 ? 'user' : 'assistant',
         content: item.content,
         createdAt: item.create_time || new Date().toISOString(),
+        contentType: item.content_type,
+        contentUrl: item.content_url,
       }));
       setMessages(loadedMessages);
       setRecordId(existingRecordId);
@@ -106,16 +108,21 @@ export function useRoleplay(courseId: number | null, existingRecordId: number | 
         setTotalRounds(5);
       }
       
-      // 设置练习模式
-      if (result.practiceMode) {
-        setPracticeMode(result.practiceMode);
-      } else {
-        // 如果后端没有返回，尝试从课程信息获取
-        if (courseId) {
-          const course = await api.courses.get(courseId);
-          if (course && course.practiceMode) {
-            setPracticeMode(course.practiceMode);
-          }
+      // 设置练习模式（支持中文和英文格式）
+      let mode = result.practiceMode || 'text';
+      // 统一转换为英文格式
+      if (mode === '语音') mode = 'voice';
+      if (mode === '文本') mode = 'text';
+      setPracticeMode(mode);
+      
+      // 如果后端没有返回，尝试从课程信息获取
+      if (!result.practiceMode && courseId) {
+        const course = await api.courses.get(courseId);
+        if (course && course.practiceMode) {
+          let courseMode = course.practiceMode;
+          if (courseMode === '语音') courseMode = 'voice';
+          if (courseMode === '文本') courseMode = 'text';
+          setPracticeMode(courseMode);
         }
       }
     } catch (e) {
@@ -136,13 +143,14 @@ export function useRoleplay(courseId: number | null, existingRecordId: number | 
       createdAt: new Date().toISOString(),
       isEvaluating: true, // 标记正在评价中
       roundNumber: currentRound,
+      contentType: practiceMode === 'voice' ? '2' : '1', // 语音模式为音频类型
     };
     setMessages(prev => [...prev, userMsg]);
     setIsLoading(true);
     setIsTyping(true);
 
     try {
-      const res = await api.practice.turn(recordId, content.trim());
+      const res = await api.practice.turn(recordId, content.trim(), practiceMode);
 
       // 更新最新消息的评价数据
       setMessages(prev => {

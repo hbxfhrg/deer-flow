@@ -6,6 +6,8 @@ export interface Message {
   evaluation?: MessageEvaluation; // 用户消息的评价信息
   isEvaluating?: boolean; // 是否正在评价中
   roundNumber?: number; // 当前轮次
+  contentType?: string; // 内容类型："1" 文本，"2" 音频
+  contentUrl?: string; // 音频文件地址
 }
 
 export interface MessageEvaluation {

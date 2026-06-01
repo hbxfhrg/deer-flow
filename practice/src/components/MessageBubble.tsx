@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { User, Bot, Pencil, Sparkles, RotateCcw } from 'lucide-react';
+import { User, Bot, Pencil, Sparkles, RotateCcw, Volume2 } from 'lucide-react';
 import type { Message, MessageEvaluation } from '@/types';
 import { api } from '@/api';
 
@@ -25,12 +25,18 @@ export function MessageBubble({ message, isTyping, recordId, isEvaluating, onRet
     return Math.ceil(message.content.length * 0.3);
   };
   
-  // 模拟 TTS 播放
+  // 模拟 TTS 播放（支持切换播放/停止）
   const handlePlayVoice = async () => {
-    if (isPlaying) return;
+    if (isPlaying) {
+      // 停止播放
+      setIsPlaying(false);
+      setPlaybackProgress(0);
+      return;
+    }
     
+    // 开始播放
     setIsPlaying(true);
-    const duration = getVoiceDuration();
+    const duration = getVoiceDuration() || 30;
     
     // 模拟播放进度
     const interval = setInterval(() => {
@@ -106,37 +112,61 @@ export function MessageBubble({ message, isTyping, recordId, isEvaluating, onRet
             )}
           </div>
           
-          {/* 消息内容 */}
-          <div className={`relative px-4 py-3 rounded-2xl ${
-            isUser 
-              ? 'bg-white text-gray-800 rounded-br-md border border-gray-100 shadow-sm' 
-              : 'bg-success-500 text-white rounded-bl-md'
-          }`}>
-            {/* 语音时长标签（仅语音模式且非用户消息） */}
-            {practiceMode === 'voice' && !isUser && !isTyping && (
-              <div className="flex items-center gap-2 mb-2">
-                <div 
-                  className={`flex items-center gap-1.5 px-3 py-1.5 bg-white/20 rounded-full text-sm cursor-pointer transition-opacity hover:opacity-80 ${
-                    isPlaying ? 'opacity-100' : 'opacity-70'
-                  }`}
-                  onClick={handlePlayVoice}
-                >
-                  <span className={`w-3 h-3 rounded-full border-2 border-current ${
-                    isPlaying ? 'animate-ping' : ''
-                  }`}></span>
-                  <span>{getVoiceDuration()}"</span>
-                </div>
-                {/* 播放进度条 */}
+          {/* 内容区域（语音标签 + 消息内容） */}
+          <div className="flex flex-col gap-2">
+            {/* 语音时长标签（语音模式下或消息为音频类型时显示） */}
+            {String(message.contentType) === '2' && (
+              <button 
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '8px 16px',
+                  backgroundColor: '#22c55e',
+                  borderRadius: '9999px',
+                  color: 'white',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  border: 'none',
+                  outline: 'none',
+                  width: '100%'
+                }}
+                onClick={() => {
+                  console.log('Play voice clicked!', message.id);
+                  handlePlayVoice();
+                }}
+              >
+                <span style={{ fontSize: '18px' }}>{isPlaying ? '🎵' : '🔊'}</span>
+                <span>{getVoiceDuration() || 30}"</span>
                 {isPlaying && (
-                  <div className="flex-1 h-1 bg-white/30 rounded-full overflow-hidden">
+                  <div style={{
+                    flex: 1,
+                    height: '6px',
+                    backgroundColor: 'rgba(255,255,255,0.3)',
+                    borderRadius: '3px',
+                    overflow: 'hidden',
+                    marginLeft: '8px'
+                  }}>
                     <div 
-                      className="h-full bg-white rounded-full transition-all duration-100"
-                      style={{ width: `${playbackProgress}%` }}
+                      style={{
+                        height: '100%',
+                        backgroundColor: 'white',
+                        borderRadius: '3px',
+                        transition: 'width 0.1s',
+                        width: `${playbackProgress}%`
+                      }}
                     />
                   </div>
                 )}
-              </div>
+              </button>
             )}
+            
+            {/* 消息内容 */}
+            <div className={`relative px-4 py-3 rounded-2xl ${
+              isUser 
+                ? 'bg-white text-gray-800 rounded-br-md border border-gray-100 shadow-sm' 
+                : 'bg-success-500 text-white rounded-bl-md'
+            }`}>
             {isTyping ? (
               <div className="flex items-center gap-1">
                 <span className="w-2 h-2 bg-current rounded-full opacity-70 animate-bounce" style={{ animationDelay: '0ms' }} />
@@ -285,10 +315,13 @@ export function MessageBubble({ message, isTyping, recordId, isEvaluating, onRet
               </>
             )}
           </div>
+          {/* 闭合内容区域容器 */}
         </div>
-
-
+        {/* 闭合消息主体 */}
       </div>
+      {/* 闭合内层容器 */}
     </div>
+    {/* 闭合外层容器 */}
+  </div>
   );
 }

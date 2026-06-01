@@ -10,6 +10,7 @@ import json
 import re
 import random
 import logging
+import time
 from datetime import datetime
 
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
@@ -867,11 +868,19 @@ class PracticeService:
         opening_message = await _generate_opening(scene, total_rounds, first_category)
 
         # 4. 写入 dialog_detail
-        await DialogDetailService.create_dialog({
+        # 根据练习模式设置内容类型和语音地址
+        opening_dialog_data = {
             "record_id": record_id,
             "speaker": 2,  # AI/客户
             "content": opening_message,
-        })
+            "content_type": "2" if course.practice_mode == "voice" else "1",
+        }
+        # 语音模式下，调用 TTS 生成语音
+        if course.practice_mode == "voice":
+            tts_url = await _generate_tts(opening_message, record_id)
+            opening_dialog_data["content_url"] = tts_url
+        
+        await DialogDetailService.create_dialog(opening_dialog_data)
 
         return {
             "recordId": record_id,
@@ -885,7 +894,7 @@ class PracticeService:
         }
 
     @staticmethod
-    async def turn(record_id: int, user_message: str) -> dict:
+    async def turn(record_id: int, user_message: str, practice_mode: str = "text") -> dict:
         """
         对练对话轮次处理流程：
         1. 加载记录、课程、场景
@@ -899,6 +908,9 @@ class PracticeService:
         7. 客户回复写入 dialog_detail（speaker=2, 新 round）
         8. 更新 dialog_rounds
         9. 返回：customer_message, evaluation, is_complete, round
+        
+        Args:
+            practice_mode: 练习模式，"text"（文本模式）或 "voice"（语音模式）
         """
         # 验证用户消息
         user_message = user_message.strip()
@@ -938,11 +950,21 @@ class PracticeService:
         current_round = ai_reply_count
 
         # 2. 写入学员话术
-        await DialogDetailService.create_dialog({
+        # 语音模式下：content_type = "2"，content_url 存储录音地址
+        # 文本模式下：content_type = "1"，content_url 为空
+        dialog_data = {
             "record_id": record_id,
             "speaker": 1,  # 学员
             "content": user_message,
-        })
+            "content_type": "2" if practice_mode == "voice" else "1",
+        }
+        # 语音模式下，假设前端已经上传了录音文件，这里需要存储录音地址
+        # 实际应用中，录音地址应该由前端上传后返回
+        if practice_mode == "voice":
+            # 模拟录音地址（实际应从前端接收或上传后获取）
+            dialog_data["content_url"] = f"/uploads/voice/user_{record_id}_{int(time.time())}.mp3"
+        
+        await DialogDetailService.create_dialog(dialog_data)
 
         # 3. 获取最新对话历史（用于评估上下文）
         all_dialogs = await DialogDetailService.get_dialogs_by_record(record_id)
@@ -1005,11 +1027,19 @@ class PracticeService:
             # 生成结束语
             closing_message = await _generate_closing_message(scene, all_dialogs, total_score)
             
-            await DialogDetailService.create_dialog({
+            # 写入结束语
+            closing_dialog_data = {
                 "record_id": record_id,
                 "speaker": 2,
                 "content": closing_message,
-            })
+                "content_type": "2" if practice_mode == "voice" else "1",
+            }
+            # 语音模式下，调用 TTS 生成语音
+            if practice_mode == "voice":
+                tts_url = await _generate_tts(closing_message, record_id)
+                closing_dialog_data["content_url"] = tts_url
+            
+            await DialogDetailService.create_dialog(closing_dialog_data)
             
             return {
                 "recordId": record_id,
@@ -1029,11 +1059,21 @@ class PracticeService:
         next_category = _get_current_category(scene, next_round, record_id)
         customer_message = await _generate_customer_reply(scene, all_dialogs, next_round, total_rounds, next_category)
 
-        await DialogDetailService.create_dialog({
+        # 写入 AI 回复
+        # 语音模式下：content_type = "2"，调用 TTS 生成语音地址
+        ai_dialog_data = {
             "record_id": record_id,
             "speaker": 2,
             "content": customer_message,
-        })
+            "content_type": "2" if practice_mode == "voice" else "1",
+        }
+        # 语音模式下，调用 TTS 生成语音
+        if practice_mode == "voice":
+            # 模拟 TTS 生成语音地址（实际应调用阿里 TTS API）
+            tts_url = await _generate_tts(customer_message, record_id)
+            ai_dialog_data["content_url"] = tts_url
+        
+        await DialogDetailService.create_dialog(ai_dialog_data)
 
         # 8. 重新计算当前轮次（AI回复已写入）
         all_dialogs = await DialogDetailService.get_dialogs_by_record(record_id)
@@ -1166,7 +1206,7 @@ class PracticeService:
         return {
             "history": result,
             "totalRounds": total_rounds,
-            "practiceMode": record.practice_mode if record else None,
+            "practiceMode": record.practice_mode if record and record.practice_mode else 'text',
         }
 
     @staticmethod
@@ -1356,3 +1396,37 @@ class PracticeService:
             "currentCategory": current_category or "综合能力",
             "inspiration": inspiration,
         }
+
+
+# ── TTS 语音合成工具函数 ─────────────────────────────────────────
+
+async def _generate_tts(text: str, record_id: int) -> str:
+    """
+    生成 TTS 语音（模拟实现）
+    
+    Args:
+        text: 要转换为语音的文本内容
+        record_id: 练习记录ID
+        
+    Returns:
+        语音文件的URL地址
+        
+    TODO: 实际应用中需要对接阿里 TTS API：
+    1. 调用阿里语音合成 API
+    2. 保存生成的音频文件到存储服务
+    3. 返回可访问的音频URL
+    """
+    # 模拟 TTS 生成，返回一个模拟的音频URL
+    # 实际实现需要：
+    # 1. 安装阿里云 SDK：pip install aliyun-python-sdk-core-v3 aliyun-python-sdk-tts
+    # 2. 配置阿里云 AccessKey
+    # 3. 调用 TTS API 生成语音
+    # 4. 上传到 OSS 或本地存储
+    
+    # 模拟生成一个唯一的音频文件名
+    timestamp = int(time.time())
+    audio_url = f"/uploads/voice/ai_{record_id}_{timestamp}.mp3"
+    
+    logger.info(f"【TTS生成】record_id={record_id}, text_length={len(text)}, audio_url={audio_url}")
+    
+    return audio_url

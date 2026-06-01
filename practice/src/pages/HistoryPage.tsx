@@ -26,9 +26,9 @@ export function HistoryPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusType>('all');
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>(getDefaultDateRange());
-  const [page, setPage] = useState(1);
+  const [, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  const [isFilterChanged, setIsFilterChanged] = useState(false);
+  const [isFilterChanged] = useState(false);
 
   function getDefaultDateRange() {
     const end = new Date();

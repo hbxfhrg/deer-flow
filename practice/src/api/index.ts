@@ -241,15 +241,16 @@ export const api = {
       return response.data;
     },
     
-    async history(recordId: number): Promise<{ history: any[], totalRounds?: number }> {
+    async history(recordId: number): Promise<{ history: any[], totalRounds?: number, practiceMode?: string }> {
       const response = await axiosInstance.get(`/roleplay/practice/${recordId}/history`);
       return response.data;
     },
     
-    async turn(recordId: number, message: string): Promise<PracticeTurnResponse> {
+    async turn(recordId: number, message: string, practiceMode?: string): Promise<PracticeTurnResponse> {
       const response = await axiosInstance.post('/roleplay/practice/turn', {
         recordId,
         message,
+        practiceMode,
       });
       return response.data;
     },

@@ -1,4 +1,4 @@
-import { ArrowLeft, LogOut, Power } from 'lucide-react';
+import { ArrowLeft, Power } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { MessageBubble } from '@/components/MessageBubble';
