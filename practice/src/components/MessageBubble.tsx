@@ -25,7 +25,7 @@ export function MessageBubble({ message, isTyping, recordId, isEvaluating, onRet
     return Math.ceil(message.content.length * 0.3);
   };
   
-  // 模拟 TTS 播放（支持切换播放/停止）
+  // 使用 Web Audio API 播放音频
   const handlePlayVoice = async () => {
     if (isPlaying) {
       // 停止播放
@@ -34,28 +34,66 @@ export function MessageBubble({ message, isTyping, recordId, isEvaluating, onRet
       return;
     }
     
-    // 开始播放
-    setIsPlaying(true);
-    const duration = getVoiceDuration() || 30;
+    // 检查是否有音频URL
+    if (!message.contentUrl) {
+      console.warn('No audio URL available');
+      return;
+    }
     
-    // 模拟播放进度
-    const interval = setInterval(() => {
-      setPlaybackProgress(prev => {
-        if (prev >= 100) {
+    try {
+      setIsPlaying(true);
+      
+      // 创建 Audio 对象播放实际音频
+      const audio = new Audio(message.contentUrl);
+      
+      // 获取音频时长
+      audio.onloadedmetadata = () => {
+        const duration = audio.duration || getVoiceDuration() || 30;
+        
+        // 更新播放进度
+        const updateProgress = () => {
+          if (audio.currentTime > 0 && duration > 0) {
+            setPlaybackProgress((audio.currentTime / duration) * 100);
+          }
+        };
+        
+        // 每100ms更新进度
+        const interval = setInterval(updateProgress, 100);
+        
+        // 播放结束处理
+        audio.onended = () => {
           clearInterval(interval);
           setIsPlaying(false);
-          return 0;
-        }
-        return prev + (100 / (duration * 10));
-      });
-    }, 100);
-    
-    // 实际播放完成后清理
-    setTimeout(() => {
-      clearInterval(interval);
+          setPlaybackProgress(0);
+        };
+        
+        // 播放错误处理
+        audio.onerror = () => {
+          clearInterval(interval);
+          setIsPlaying(false);
+          setPlaybackProgress(0);
+          console.error('Failed to play audio');
+        };
+        
+        // 开始播放
+        audio.play().catch(err => {
+          console.error('Playback failed:', err);
+          clearInterval(interval);
+          setIsPlaying(false);
+          setPlaybackProgress(0);
+        });
+      };
+      
+      // 加载元数据失败时的回退
+      audio.onerror = () => {
+        setIsPlaying(false);
+        console.error('Failed to load audio metadata');
+      };
+      
+    } catch (error) {
+      console.error('Error playing voice:', error);
       setIsPlaying(false);
-      setPlaybackProgress(0);
-    }, duration * 1000);
+    }
   };
   const [isLoading, setIsLoading] = useState(false);
   const [detailedEvaluation, setDetailedEvaluation] = useState<MessageEvaluation | null>(null);

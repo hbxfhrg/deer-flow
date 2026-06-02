@@ -62,20 +62,28 @@ async def upload_file_to_oss(
         raise
 
 
-def generate_filename(original_filename: str | None = None) -> str:
+def generate_filename(original_filename: str) -> str:
     """
     Generate a unique filename for OSS storage.
     
     Args:
-        original_filename: Optional original filename for extension preservation
+        original_filename: The original filename for extension preservation. Required.
     
     Returns:
         A unique filename with timestamp
+    
+    Raises:
+        ValueError: If original_filename is None or empty
     """
-    timestamp = int(time.time())
+    if not original_filename:
+        raise ValueError("original_filename is required")
+    
+    # 使用传入的文件名，保持与模拟地址一致
     extension = ""
-    
-    if original_filename and "." in original_filename:
+    if "." in original_filename:
         extension = "." + original_filename.split(".")[-1].lower()
+        original_name = original_filename[:-(len(extension))]
+    else:
+        original_name = original_filename
     
-    return f"voice/upload_{timestamp}{extension}"
+    return f"voice/{original_name}{extension}"

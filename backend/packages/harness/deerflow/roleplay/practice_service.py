@@ -22,6 +22,7 @@ from deerflow.models import create_chat_model
 from deerflow.roleplay import get_db
 from deerflow.roleplay.models import SceneRow, CourseRow, DialogDetailRow, CourseRecordRow
 from deerflow.roleplay.services import SceneService, CourseService, DialogDetailService
+from deerflow.config.app_config import get_app_config
 
 logger = logging.getLogger(__name__)
 
@@ -889,6 +890,8 @@ class PracticeService:
             "sceneDescription": scene.scene_description,
             "totalRounds": total_rounds,
             "customerMessage": opening_message,
+            "contentType": "2" if course.practice_mode == "voice" else "1",
+            "contentUrl": opening_dialog_data.get("content_url"),
             "round": 1,  # 开场白算第1轮开始
             "practiceMode": course.practice_mode,
         }
@@ -923,19 +926,13 @@ class PracticeService:
         
         # 1. 加载记录、课程、场景
         record, course, scene = await _load_scene_by_record(record_id)
-
-        # 总轮次计算逻辑：
-        # - 自由式对练（practice_mode="text"或"自由式"）：取exam_categories字段中逗号分隔的类别数量
-        # - 其他模式：使用dialog_round_limit配置，默认5轮
-        logger.info(f"【总轮次计算】practice_mode={repr(scene.practice_mode)}, exam_categories={repr(scene.exam_categories)}, dialog_round_limit={scene.dialog_round_limit}")
-        if (scene.practice_mode == "text" or scene.practice_mode == "自由式") and scene.exam_categories:
-            # 同时支持中文逗号和英文逗号分割
-            categories = scene.exam_categories.replace("，", ",").split(",")
-            total_rounds = len([cat.strip() for cat in categories if cat.strip()])
-            if total_rounds == 0:
-                total_rounds = 5
-        else:
-            total_rounds = scene.dialog_round_limit or 5
+        
+        # 从 pract_course_record 读取已保存的配置，避免重复计算
+        # practice_mode: 练习模式，"text"（文本模式）或 "voice"（语音模式）
+        # total_rounds: 总轮次
+        practice_mode = record.practice_mode or course.practice_mode
+        total_rounds = record.total_rounds or 5
+        logger.info(f"【轮次处理】从记录读取配置: practice_mode={repr(practice_mode)}, total_rounds={total_rounds}")
         
         # 获取当前对话历史，动态计算当前轮次
         all_dialogs = await DialogDetailService.get_dialogs_by_record(record_id)
@@ -958,11 +955,30 @@ class PracticeService:
             "content": user_message,
             "content_type": "2" if practice_mode == "voice" else "1",
         }
-        # 语音模式下，假设前端已经上传了录音文件，这里需要存储录音地址
-        # 实际应用中，录音地址应该由前端上传后返回
+        # 语音模式下，从消息末尾提取OSS URL（格式：[url]xxx[/url]）
         if practice_mode == "voice":
-            # 模拟录音地址（实际应从前端接收或上传后获取）
-            dialog_data["content_url"] = f"/uploads/voice/user_{record_id}_{int(time.time())}.mp3"
+            # 检查消息是否包含OSS URL标记
+            logger.info(f"【学员语音】practice_mode={practice_mode}, user_message长度={len(user_message)}, 消息开头={user_message[:50]}")
+            # 匹配URL：支持 [url]...[/url] 格式和直接嵌入的URL
+            # 先尝试匹配 [url]...[/url] 格式
+            url_match = re.search(r'\[url\](.+?)\[/url\]', user_message, re.DOTALL)
+            
+            if not url_match:
+                # 如果没有找到 [url] 标记，尝试匹配直接嵌入的OSS URL
+                url_match = re.search(r'https?://[^\s]+\.(mp3|aac|wav)', user_message)
+            
+            if url_match:
+                oss_url = url_match.group(1).strip()
+                dialog_data["content_url"] = oss_url
+                # 移除URL，只保留转写文本
+                dialog_data["content"] = re.sub(r'\[url\].+?\[/url\]\s*|\s*https?://[^\s]+\.(mp3|aac|wav)\s*', '', user_message, flags=re.DOTALL).strip()
+                logger.info(f"【学员语音】提取OSS URL成功: {oss_url}, 转写文本: {dialog_data['content']}")
+            else:
+                # 如果没有URL，抛出异常，不使用模拟地址
+                logger.error(f"【学员语音】未找到OSS URL，原始消息: {user_message[:200]}")
+                raise ValueError("语音模式下必须提供音频URL")
+        else:
+            logger.info(f"【文本模式】practice_mode={practice_mode}")
         
         await DialogDetailService.create_dialog(dialog_data)
 
@@ -1000,6 +1016,7 @@ class PracticeService:
             if d.speaker == 1 and d.content:
                 user_reply_count += 1
         is_complete = user_reply_count >= total_rounds
+        logger.info(f"【结束判断】total_rounds={total_rounds}, user_reply_count={user_reply_count}, is_complete={is_complete}")
 
         if is_complete:
             # 自动结束：生成最终报告
@@ -1027,17 +1044,13 @@ class PracticeService:
             # 生成结束语
             closing_message = await _generate_closing_message(scene, all_dialogs, total_score)
             
-            # 写入结束语
+            # 写入结束语（不调用TTS，结束语只是为了流程完整性）
             closing_dialog_data = {
                 "record_id": record_id,
                 "speaker": 2,
                 "content": closing_message,
-                "content_type": "2" if practice_mode == "voice" else "1",
+                "content_type": "1",  # 结束语始终使用文本类型，不调用TTS
             }
-            # 语音模式下，调用 TTS 生成语音
-            if practice_mode == "voice":
-                tts_url = await _generate_tts(closing_message, record_id)
-                closing_dialog_data["content_url"] = tts_url
             
             await DialogDetailService.create_dialog(closing_dialog_data)
             
@@ -1069,7 +1082,6 @@ class PracticeService:
         }
         # 语音模式下，调用 TTS 生成语音
         if practice_mode == "voice":
-            # 模拟 TTS 生成语音地址（实际应调用阿里 TTS API）
             tts_url = await _generate_tts(customer_message, record_id)
             ai_dialog_data["content_url"] = tts_url
         
@@ -1093,6 +1105,9 @@ class PracticeService:
             )
             await session.commit()
 
+        # 构造返回的语音URL
+        voice_url = ai_dialog_data.get("content_url", "") if practice_mode == "voice" else ""
+        
         return {
             "recordId": record_id,
             "round": updated_round,
@@ -1103,6 +1118,8 @@ class PracticeService:
                 "feedback": evaluation.get("feedback", ""),
             },
             "customerMessage": customer_message,
+            "contentUrl": voice_url,
+            "contentType": "2" if practice_mode == "voice" else "1",
             "isComplete": False,
         }
 
@@ -1182,6 +1199,7 @@ class PracticeService:
         result = []
         ai_reply_count = 0  # 统计AI回复数量
         current_round = 0    # 当前轮次
+        import re
         
         for d in dialogs:
             if d.speaker == 2 and d.content:  # AI回复
@@ -1189,12 +1207,17 @@ class PracticeService:
                 # 开场白算第1轮，AI回复数量即为当前轮次
                 current_round = ai_reply_count
             
+            # 清理内容中的URL标记（兼容旧数据）
+            content = d.content
+            if content:
+                content = re.sub(r'\[url\].+?\[/url\]\s*', '', content, flags=re.DOTALL).strip()
+            
             result.append({
                 "dialog_id": d.dialog_id,
                 "record_id": d.record_id,
                 "speaker": d.speaker,
                 "content_type": d.content_type,
-                "content": d.content,
+                "content": content,
                 "content_url": d.content_url,  # 录音文件地址：AI时存TTS生成的，员工时存上传的
                 "intent_analysis": d.intent_analysis,  # AI对这句话的意图分析结果 (JSON)
                 "round_number": current_round,
@@ -1402,31 +1425,88 @@ class PracticeService:
 
 async def _generate_tts(text: str, record_id: int) -> str:
     """
-    生成 TTS 语音（模拟实现）
+    生成 TTS 语音（使用 DashScope Qwen3-TTS-Flash）
     
     Args:
         text: 要转换为语音的文本内容
         record_id: 练习记录ID
         
     Returns:
-        语音文件的URL地址
-        
-    TODO: 实际应用中需要对接阿里 TTS API：
-    1. 调用阿里语音合成 API
-    2. 保存生成的音频文件到存储服务
-    3. 返回可访问的音频URL
+        语音文件的OSS URL地址
     """
-    # 模拟 TTS 生成，返回一个模拟的音频URL
-    # 实际实现需要：
-    # 1. 安装阿里云 SDK：pip install aliyun-python-sdk-core-v3 aliyun-python-sdk-tts
-    # 2. 配置阿里云 AccessKey
-    # 3. 调用 TTS API 生成语音
-    # 4. 上传到 OSS 或本地存储
+    import dashscope
+    import httpx
+    from deerflow.config.app_config import get_app_config
+    from deerflow.utils.oss_upload import generate_filename, upload_file_to_oss
     
-    # 模拟生成一个唯一的音频文件名
+    config = get_app_config()
     timestamp = int(time.time())
-    audio_url = f"/uploads/voice/ai_{record_id}_{timestamp}.mp3"
     
-    logger.info(f"【TTS生成】record_id={record_id}, text_length={len(text)}, audio_url={audio_url}")
+    # 获取 DashScope 配置
+    dashscope_config = config.dashscope
+    if not dashscope_config.is_configured():
+        logger.warning("【TTS生成】DashScope未配置")
+        # 即使未配置DashScope，如果配置了OSS，也生成模拟的OSS地址
+        oss_config = config.oss
+        if oss_config.is_configured():
+            filename = generate_filename(f"ai_{record_id}_{timestamp}.mp3")
+            # 使用正确的OSS URL格式：https://bucket.endpoint/filename
+            bucket_host = oss_config.bucket_host if oss_config.bucket_host else f"https://{oss_config.bucket_name}.{oss_config.endpoint}"
+            oss_url = f"{bucket_host}/{filename}"
+            logger.info(f"【TTS生成】DashScope未配置，使用模拟OSS地址: {oss_url}")
+            return oss_url
+        else:
+            return f"/uploads/voice/ai_{record_id}_{timestamp}.mp3"
     
-    return audio_url
+    dashscope.api_key = dashscope_config.api_key
+    dashscope.base_http_api_url = dashscope_config.base_url
+    
+    try:
+        # 调用 DashScope Qwen3-TTS-Flash API
+        response = dashscope.MultiModalConversation.call(
+            model="qwen3-tts-flash",
+            text=text,
+            voice="Cherry",
+            language_type="Chinese",
+            stream=False
+        )
+        
+        if response.status_code != 200:
+            raise Exception(f"DashScope TTS API error: {response.message}")
+        
+        # 获取音频URL
+        audio_url = response.output.audio.url
+        logger.info(f"【TTS生成】DashScope返回音频URL: {audio_url}")
+        
+        # 下载音频并上传到OSS（先完整下载到内存，再上传）
+        oss_config = config.oss
+        if oss_config.is_configured():
+            async with httpx.AsyncClient() as client:
+                # 先完整下载音频到内存
+                audio_response = await client.get(audio_url)
+                if audio_response.status_code != 200:
+                    raise Exception(f"Failed to download audio from DashScope: {audio_response.status_code}")
+                
+                audio_data = audio_response.content
+                logger.info(f"【TTS生成】音频下载完成，大小: {len(audio_data)} bytes")
+                
+                # 再上传到OSS
+                logger.info(f"【TTS生成】开始上传到OSS")
+                filename = generate_filename(f"ai_{record_id}_{timestamp}.mp3")
+                oss_url = await upload_file_to_oss(
+                    file_data=audio_data,
+                    filename=filename,
+                    content_type="audio/mpeg"
+                )
+                logger.info(f"【TTS生成】成功上传到OSS: {oss_url}")
+                return oss_url
+        else:
+            # OSS未配置，直接使用DashScope返回的URL
+            logger.info(f"【TTS生成】OSS未配置，使用DashScope URL")
+            return audio_url
+                
+    except Exception as e:
+        logger.error(f"【TTS生成】失败: {e}")
+        # TTS失败时抛出异常，让调用方处理
+        # 不返回模拟URL，因为模拟URL指向的文件实际上不存在于OSS上
+        raise RuntimeError(f"TTS generation failed: {str(e)}")

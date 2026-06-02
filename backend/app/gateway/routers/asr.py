@@ -149,19 +149,37 @@ async def process_asr_task(task_id: str, audio_url: str, model: str):
         logger.info(f"Results extracted: {results}")
         
         if results:
-            # 从第一个结果中提取转写文本
+            # 从第一个结果中获取转写URL
             result = results[0]
-            transcripts = result.get('transcripts', [])
-            logger.info(f"Transcripts found: {transcripts}")
+            transcription_url = result.get('transcription_url')
+            logger.info(f"Transcription URL: {transcription_url}")
             
-            if transcripts:
-                # 合并所有句子
-                full_text = ' '.join([t.get('text', '') for t in transcripts])
-                task["text"] = full_text
-                logger.info(f"Final transcribed text: {full_text}")
+            if transcription_url:
+                # 下载转写结果JSON文件
+                try:
+                    import urllib.request
+                    with urllib.request.urlopen(transcription_url) as response:
+                        transcription_data = response.read().decode('utf-8')
+                        import json
+                        transcription_json = json.loads(transcription_data)
+                        logger.info(f"Downloaded transcription data: {transcription_json}")
+                        
+                        # 解析转写文本 - DashScope paraformer-v2格式
+                        transcripts = transcription_json.get('transcripts', [])
+                        if transcripts:
+                            # 合并所有通道的转写文本
+                            full_text = ' '.join([t.get('text', '') for t in transcripts])
+                            task["text"] = full_text
+                            logger.info(f"Final transcribed text: {full_text}")
+                        else:
+                            task["text"] = ""
+                            logger.info("No transcripts found in downloaded data")
+                except Exception as e:
+                    task["text"] = ""
+                    logger.error(f"Failed to download transcription result: {e}")
             else:
                 task["text"] = ""
-                logger.info("No transcripts found in result")
+                logger.info("No transcription URL found in result")
         else:
             task["text"] = ""
             logger.info("No results found in response")

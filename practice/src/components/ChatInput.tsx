@@ -268,9 +268,10 @@ export function ChatInput({ onSend, disabled, practiceMode = 'text', onRecording
         return;
       }
       
-      // 设置内容并发送
+      //# 设置内容并发送（语音模式下带上OSS URL）
+      const messageWithUrl = `${asrResult} [url]${ossUrl}[/url]`;
       setContent(asrResult);
-      onSend(asrResult);
+      onSend(messageWithUrl);
       
       // 重置状态
       setAudioBlob(null);
@@ -426,7 +427,7 @@ export function ChatInput({ onSend, disabled, practiceMode = 'text', onRecording
                   onKeyDown={handleKeyDown}
                   disabled={disabled}
                   placeholder="输入消息..."
-                  className="w-full px-4 py-3 bg-gray-50 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full px-4 py-3 bg-gray-50 rounded-xl text-sm resize-none border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   rows={1}
                   style={{
                     minHeight: '48px',

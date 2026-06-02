@@ -64,6 +64,8 @@ export function useRoleplay(courseId: number | null, existingRecordId: number | 
           role: 'assistant',
           content: res.customerMessage,
           createdAt: new Date().toISOString(),
+          contentType: res.contentType,
+          contentUrl: res.contentUrl,
         };
         setMessages([aiMsg]);
       }
@@ -136,10 +138,13 @@ export function useRoleplay(courseId: number | null, existingRecordId: number | 
   const sendMessage = useCallback(async (content: string) => {
     if (!recordId || isLoading || content.trim() === '') return;
 
+    // 清理内容中的URL标记（语音模式下）
+    const cleanContent = content.replace(/\[url\].*?\[\/url\]\s*/g, '').trim();
+
     const userMsg: Message = {
       id: `user-${Date.now()}`,
       role: 'user',
-      content: content.trim(),
+      content: cleanContent,
       createdAt: new Date().toISOString(),
       isEvaluating: true, // 标记正在评价中
       roundNumber: currentRound,
