@@ -145,18 +145,26 @@ async def process_asr_task(task_id: str, audio_url: str, model: str):
         
         # 获取转写结果
         results = transcription_response.output.get('results', [])
+        logger.info(f"ASR raw response: {transcription_response.output}")
+        logger.info(f"Results extracted: {results}")
+        
         if results:
             # 从第一个结果中提取转写文本
             result = results[0]
             transcripts = result.get('transcripts', [])
+            logger.info(f"Transcripts found: {transcripts}")
+            
             if transcripts:
                 # 合并所有句子
                 full_text = ' '.join([t.get('text', '') for t in transcripts])
                 task["text"] = full_text
+                logger.info(f"Final transcribed text: {full_text}")
             else:
                 task["text"] = ""
+                logger.info("No transcripts found in result")
         else:
             task["text"] = ""
+            logger.info("No results found in response")
         
         task["status"] = "completed"
         logger.info(f"ASR transcription completed for task {task_id}")

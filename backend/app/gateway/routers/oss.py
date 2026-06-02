@@ -1,6 +1,7 @@
 """OSS upload API router."""
 
 import logging
+import time
 from typing import Annotated
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
@@ -56,7 +57,20 @@ async def upload_to_oss(
     
     try:
         file_content = await file.read()
-        filename = generate_filename(file.filename)
+        
+        # 根据内容类型确定扩展名
+        extension = ".aac"
+        if file.content_type:
+            if file.content_type.startswith("audio/mpeg"):
+                extension = ".mp3"
+            elif file.content_type.startswith("audio/wav"):
+                extension = ".wav"
+            elif file.content_type.startswith("audio/webm"):
+                extension = ".webm"
+        
+        # 生成文件名，使用确定的扩展名
+        filename = f"voice/upload_{int(time.time())}{extension}"
+        
         url = await upload_file_to_oss(
             file_data=file_content,
             filename=filename,

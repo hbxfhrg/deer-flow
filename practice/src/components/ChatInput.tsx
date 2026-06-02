@@ -159,7 +159,7 @@ export function ChatInput({ onSend, disabled, practiceMode = 'text', onRecording
     try {
       // 将Blob转换为FormData上传到后端
       const formData = new FormData();
-      formData.append('audio', blob, `recording_${Date.now()}.aac`);
+      formData.append('file', blob, `recording_${Date.now()}.aac`);
       
       // 调用后端API上传到OSS
       const response = await fetch('/api/oss/upload', {
@@ -233,28 +233,40 @@ export function ChatInput({ onSend, disabled, practiceMode = 'text', onRecording
       
     } catch (error) {
       console.error('ASR调用失败:', error);
-      // 模拟返回（实际项目中移除）
-      await new Promise(resolve => setTimeout(resolve, 500));
-      return `语音转写内容（时长${recordDuration}秒）：您好，我是客服小林，想咨询一下关于产品使用的问题。`;
+      throw error;
     }
   };
 
   // 发送录音（Fun-ASR需要先上传OSS获取URL）
   const sendRecording = async () => {
-    if (!audioBlob || disabled) return;
-    
-    stopMediaRecorder();
+    if (disabled || recordDuration === 0) return;
     
     try {
-      // 步骤1：先上传到OSS获取URL
+      // 步骤1：停止录音并等待audioBlob生成
+      console.log('停止录音...');
+      const blob = await stopAndGetAudioBlob();
+      console.log('录音停止，Blob生成完成');
+      
+      // 步骤2：上传到OSS获取URL
       console.log('上传音频到OSS...');
-      const ossUrl = await uploadToOSS(audioBlob);
+      const ossUrl = await uploadToOSS(blob);
       console.log('OSS上传完成，URL:', ossUrl);
       
-      // 步骤2：用OSS URL调用Fun-ASR转写
+      // 步骤3：用OSS URL调用Fun-ASR转写
       console.log('开始ASR转写...');
       const asrResult = await callASR(ossUrl);
       console.log('ASR转写完成，结果:', asrResult);
+      
+      // 检查转写结果是否为空
+      if (!asrResult || asrResult.trim() === '') {
+        // 空结果：提示用户重试，不记录本次结果
+        alert('没听清，请再试一次');
+        // 重置状态，准备重新录制
+        setAudioBlob(null);
+        setRecordDuration(0);
+        setRecordingPhase('idle');
+        return;
+      }
       
       // 设置内容并发送
       setContent(asrResult);
@@ -269,6 +281,44 @@ export function ChatInput({ onSend, disabled, practiceMode = 'text', onRecording
       console.error('发送录音失败:', error);
       alert('发送失败，请重试');
     }
+  };
+  
+  // 停止录音并返回生成的audioBlob（Promise版）
+  const stopAndGetAudioBlob = (): Promise<Blob> => {
+    return new Promise((resolve) => {
+      if (mediaRecorderRef.current) {
+        // 设置onstop回调来获取blob
+        const originalOnStop = mediaRecorderRef.current.onstop;
+        mediaRecorderRef.current.onstop = (event) => {
+          // 调用原始的onstop处理
+          if (originalOnStop) {
+            originalOnStop(event);
+          }
+          // 等待状态更新后返回blob
+          setTimeout(() => {
+            resolve(new Blob(audioChunksRef.current, { type: getAudioFormat() }));
+          }, 100);
+        };
+        
+        // 停止录音
+        mediaRecorderRef.current.stop();
+        mediaRecorderRef.current = null;
+      } else {
+        // 如果没有正在录制，直接返回已有的blob
+        resolve(new Blob(audioChunksRef.current, { type: getAudioFormat() }));
+      }
+      
+      // 清理计时器
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      if (animationRef.current) {
+        clearInterval(animationRef.current);
+        animationRef.current = null;
+      }
+      setIsRecording(false);
+    });
   };
 
   // 取消录音

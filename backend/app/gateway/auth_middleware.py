@@ -39,6 +39,10 @@ _PUBLIC_PATH_PREFIXES: tuple[str, ...] = (
     "/roleplay/courses",
     # Roleplay statistics endpoints
     "/roleplay/statistics",
+    # ASR, TTS and OSS endpoints (for testing)
+    "/api/asr",
+    "/api/tts",
+    "/api/oss",
 )
 
 # Exact auth paths that are public (login/register/status check).
