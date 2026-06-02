@@ -34,6 +34,8 @@ export function ResultPage() {
           content: item.content,
           createdAt: item.create_time || new Date().toISOString(),
           roundNumber: item.round_number,
+          contentType: item.content_type,  // 添加 contentType
+          contentUrl: item.content_url,    // 添加 contentUrl
           evaluation: item.evaluation ? {
             score: item.evaluation.round_score,
             dimensionScores: item.evaluation.dimension_scores || {},

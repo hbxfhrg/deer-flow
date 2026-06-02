@@ -195,6 +195,8 @@ export function useRoleplay(courseId: number | null, existingRecordId: number | 
           content: res.customerMessage,
           createdAt: new Date().toISOString(),
           roundNumber: res.round,
+          contentType: res.contentType,  // 添加 contentType
+          contentUrl: res.contentUrl,    // 添加 contentUrl
         };
         setMessages(prev => [...prev, aiMsg]);
       }

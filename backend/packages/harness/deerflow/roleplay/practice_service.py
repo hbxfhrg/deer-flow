@@ -1063,6 +1063,8 @@ class PracticeService:
                     "feedback": evaluation.get("feedback", ""),
                 },
                 "customerMessage": closing_message,
+                "contentUrl": "",  # 结束语使用文本类型，无音频URL
+                "contentType": "1",  # 结束语使用文本类型
                 "isComplete": True,
                 "report": report,
             }
@@ -1212,6 +1214,9 @@ class PracticeService:
             if content:
                 content = re.sub(r'\[url\].+?\[/url\]\s*', '', content, flags=re.DOTALL).strip()
             
+            # 判断是否有语音内容：content_type="2" 或者 content_url 有值
+            has_audio = (d.content_type == "2") or (d.content_url and d.content_url.strip())
+            
             result.append({
                 "dialog_id": d.dialog_id,
                 "record_id": d.record_id,
@@ -1219,6 +1224,11 @@ class PracticeService:
                 "content_type": d.content_type,
                 "content": content,
                 "content_url": d.content_url,  # 录音文件地址：AI时存TTS生成的，员工时存上传的
+                "audio_url": d.content_url,    # 备用字段名，兼容前端
+                "has_audio": has_audio,        # 明确标记是否有语音，供前端直接使用
+                "is_audio": has_audio,         # 下划线格式
+                "isAudio": has_audio,          # 驼峰格式
+                "audio": has_audio,            # 简短格式
                 "intent_analysis": d.intent_analysis,  # AI对这句话的意图分析结果 (JSON)
                 "round_number": current_round,
                 "score": d.score,
@@ -1226,10 +1236,24 @@ class PracticeService:
                 "create_time": d.create_time.isoformat() if d.create_time else None,
             })
         
+        # 确定练习模式：优先使用记录中的值，其次检查对话中是否有语音内容
+        practice_mode = 'text'
+        if record and record.practice_mode:
+            practice_mode = record.practice_mode
+        else:
+            # 如果记录中没有保存模式，检查对话历史中是否有语音内容
+            for d in dialogs:
+                if d.content_type == "2" or (d.content_url and d.content_url.strip()):
+                    practice_mode = 'voice'
+                    break
+        
+        logger.info(f"【历史查询】record_id={record_id}, practice_mode={practice_mode}, total_rounds={total_rounds}")
+        
         return {
             "history": result,
             "totalRounds": total_rounds,
-            "practiceMode": record.practice_mode if record and record.practice_mode else 'text',
+            "practiceMode": practice_mode,
+            "practice_mode": practice_mode,  # 同时返回下划线格式，兼容前端
         }
 
     @staticmethod
