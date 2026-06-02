@@ -96,8 +96,8 @@ class SceneService:
                     # 特殊处理: enabled -> status
                     if key == "enabled":
                         setattr(scene, "status", 1 if value else 0)
-                    # 特殊处理: promptTemplate -> metadata_json.prompt_template
-                    elif key == "promptTemplate":
+                    # 特殊处理: promptTemplate/prompt_template -> metadata_json.prompt_template
+                    elif key == "promptTemplate" or key == "prompt_template":
                         scene.metadata_json = {**(scene.metadata_json or {}), "prompt_template": value}
                     elif hasattr(scene, db_key):
                         setattr(scene, db_key, value)
